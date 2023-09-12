@@ -96,3 +96,9 @@ ENV/
 .ropeproject
 
 *.gz
+
+# MacOS directory files
+.DS_Store
+
+# Emacs Autosaves
+*~

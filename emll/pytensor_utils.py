@@ -4,8 +4,8 @@ import scipy as sp
 from scipy.linalg.misc import LinAlgError
 from scipy.linalg.lapack import get_lapack_funcs
 
-from theano import tensor
-from theano.tensor.slinalg import Solve
+from pytensor import tensor
+from pytensor.tensor.slinalg import Solve
 
 class SymPosSolve(Solve):   
     """
