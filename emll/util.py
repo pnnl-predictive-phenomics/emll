@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import pytensor.tensor as at
-import pymc3 as pm
+import pymc as pm
 
 
 def create_elasticity_matrix(model):
@@ -101,7 +101,8 @@ def compute_smallbone_reduction(N, Ex, v_star, tol=1e-8):
     # Get the matrix rank from the r matrix
     maxabs = np.max(np.abs(np.diag(r)))
     maxdim = max(N.shape)
-    tol = maxabs * maxdim * np.MachAr().eps
+    tol = maxabs * maxdim * (2.220446049250313e-16)
+
     # Find where the rows of r are all less than tol
     rank = (~(np.abs(r) < tol).all(1)).sum()
 

@@ -11,7 +11,7 @@ import pytensor.tensor.slinalg
 from emll.pytensor_utils import RegularizedSolve, LeastSquaresSolve, lstsq_wrapper
 from emll.util import compute_smallbone_reduction, compute_waldherr_reduction
 
-floatX = pytensor.config.floatX
+# floatX = pytensor.config.floatX
 
 
 class LinLogBase(object):
@@ -35,7 +35,7 @@ class LinLogBase(object):
             A length M vector specifying the original steady-state flux
             solution of the model.
         lam : float
-            The $\lambda$ value to use for tikhonov regularization
+            The λ value to use for tikhonov regularization
         reduction_method : 'waldherr', 'smallbone', or None
             Type of stoichiometric decomposition to perform (default
             'smallbone')

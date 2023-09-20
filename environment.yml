@@ -21,4 +21,4 @@ dependencies:
     - cobra==0.12.1
     - pymc3==3.5
     - swiglpk==1.4.4
-    - theano==1.0.3
+    - pytensor==2.16.1
