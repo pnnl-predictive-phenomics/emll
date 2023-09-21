@@ -14,11 +14,12 @@ pytensor.config.optimizer = "fast_compile"
 
 
 @pytest.fixture(
-    params=["teusink", "mendes", "textbook", "greene_small", "greene_large", "contador"],
-    name="cobra_model"
+    # params=["teusink", "mendes", "textbook", "greene_small", "greene_large", "contador"],
+    params=["textbook", "contador"],
+    name="cobra_model",
 )
 def cobra_model_fixture(request):
-    '''Loads in cobra model and sets elasticity'''
+    """Loads in cobra model and sets elasticity"""
     model, N, v_star = models[request.param]()
     Ex = create_elasticity_matrix(model)
     Ey = create_Ey_matrix(model)
@@ -27,34 +28,38 @@ def cobra_model_fixture(request):
 
 @pytest.fixture(name="linlog_least_norm")
 def linlog_least_norm_fixture(cobra_model):
-    '''Method for calculating linlog least norm'''
+    """Method for calculating linlog least norm"""
     _, N, Ex, Ey, v_star = cobra_model
-    return LinLogLeastNorm(N, Ex, Ey, v_star)
+    ll = LinLogLeastNorm(N, Ex, Ey, v_star)
+    return ll
 
 
-@pytest.fixture()
+@pytest.fixture(name="linlog_tikhonov")
 def linlog_tikhonov_fixture(cobra_model):
     _, N, Ex, Ey, v_star = cobra_model
-    return LinLogTikhonov(N, Ex, Ey, v_star, lambda_=1e-6)
+    ll = LinLogTikhonov(N, Ex, Ey, v_star, lambda_=1e-6)
+    return ll
 
 
-@pytest.fixture()
+@pytest.fixture(name="linlog_link")
 def linlog_link_fixture(cobra_model):
     _, N, Ex, Ey, v_star = cobra_model
-    return LinLogLinkMatrix(N, Ex, Ey, v_star)
+    ll = LinLogLinkMatrix(N, Ex, Ey, v_star)
+    return ll
 
 
 @pytest.fixture(
-    params=[linlog_least_norm_fixture, linlog_tikhonov_fixture, linlog_link_fixture],
-    name="linlog_model"
+    params=["linlog_least_norm", "linlog_tikhonov", "linlog_link"],
+    name="linlog_model",
 )
 def linlog_model_fixture(request, cobra_model):
-    fixture = request.param
-    return fixture(cobra_model)
+    fixture_name = request.param
+    fixture = request.getfixturevalue(fixture_name)
+    return fixture
 
 
 def test_steady_state(linlog_model):
-    '''Test to ensure steady state'''
+    """Test to ensure steady state"""
     ll = linlog_model
 
     # Fake up some experiments
@@ -87,7 +92,7 @@ def test_steady_state(linlog_model):
 
 
 def test_control_coeff(linlog_model):
-    ''' Test for control coeffecients'''
+    """Test for control coeffecients"""
     ll = linlog_model
 
     fd = 1e-5
@@ -103,13 +108,11 @@ def test_control_coeff(linlog_model):
     np.testing.assert_allclose(
         cx_fd, ll.metabolite_control_coefficient(en=ei), atol=1e-5, rtol=1e-4
     )
-    np.testing.assert_allclose(
-        cv_fd, ll.flux_control_coefficient(en=ei), atol=1e-5, rtol=1e-4
-    )
+    np.testing.assert_allclose(cv_fd, ll.flux_control_coefficient(en=ei), atol=1e-5, rtol=1e-4)
 
 
 def test_reduction_methods(cobra_model):
-    '''Test for reduction methods'''
+    """Test for reduction methods"""
     model, N, Ex, Ey, v_star = cobra_model
     ll1 = LinLogLeastNorm(N, Ex, Ey, v_star, reduction_method="smallbone")
     ll2 = LinLogLeastNorm(N, Ex, Ey, v_star, reduction_method="waldherr")

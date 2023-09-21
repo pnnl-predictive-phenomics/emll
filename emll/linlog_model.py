@@ -11,7 +11,8 @@ import pytensor.tensor.slinalg
 from emll.pytensor_utils import RegularizedSolve, LeastSquaresSolve, lstsq_wrapper
 from emll.util import compute_smallbone_reduction, compute_waldherr_reduction
 
-# floatX = pytensor.config.floatX
+
+_floatX = pytensor.config.floatX
 
 
 class LinLogBase(object):
@@ -146,7 +147,7 @@ class LinLogBase(object):
         N_rep = self.Nr.reshape((-1, *self.Nr.shape)).repeat(n_exp, axis=0)
         N_hat = at.batched_dot(N_rep, e_diag)
 
-        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=floatX)
+        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=_floatX)
         As = at.dot(N_hat, Ex)
 
         bs = at.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, "x"))
@@ -317,7 +318,7 @@ class LinLogPinv(LinLogLeastNorm):
         N_rep = self.Nr.reshape((-1, *self.Nr.shape)).repeat(n_exp, axis=0)
         N_hat = at.batched_dot(N_rep, e_diag)
 
-        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=floatX)
+        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=_floatX)
         As = at.dot(N_hat, Ex)
 
         bs = at.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, "x"))

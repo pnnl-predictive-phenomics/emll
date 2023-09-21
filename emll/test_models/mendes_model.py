@@ -1,6 +1,8 @@
 import cobra
 import numpy as np
 
+from cobra.util.array import create_stoichiometric_matrix
+
 model = cobra.Model('mendes')
 
 M1 = cobra.Metabolite('M1')
@@ -16,38 +18,38 @@ AH = cobra.Metabolite('AH')
 model.add_metabolites([M1, M2, M3, M4, M5, M6, A, AH])
 
 R1 = cobra.Reaction('R1')
-model.add_reaction(R1)
+model.add_reactions([R1])
 R1.build_reaction_from_string(' --> M1')
 
 R2 = cobra.Reaction('R2')
-model.add_reaction(R2)
+model.add_reactions([R2])
 R2.build_reaction_from_string('A + M1 --> AH + M2')
 
 R3 = cobra.Reaction('R3')
-model.add_reaction(R3)
+model.add_reactions([R3])
 R3.build_reaction_from_string('M2 --> M3')
 
 R4 = cobra.Reaction('R4')
-model.add_reaction(R4)
+model.add_reactions([R4])
 R4.build_reaction_from_string('AH + M3 --> A + M4')
 
 R5 = cobra.Reaction('R5')
-model.add_reaction(R5)
+model.add_reactions([R5])
 R5.build_reaction_from_string('M4 -->')
 
 R6 = cobra.Reaction('R6')
-model.add_reaction(R6)
+model.add_reactions([R6])
 R6.build_reaction_from_string('M2 --> M5')
 
 R7 = cobra.Reaction('R7')
-model.add_reaction(R7)
+model.add_reactions([R7])
 R7.build_reaction_from_string('AH + M5 --> M6 + A')
 
 R8 = cobra.Reaction('R8')
-model.add_reaction(R8)
+model.add_reactions([R8])
 R8.build_reaction_from_string('M6 -->')
 
-S = np.asarray(model.to_array_based_model().S.todense())
+S = create_stoichiometric_matrix(model)
 
 
 def reversible_hill(substrate, product, Modifier, Keq, Vf, Shalve, Phalve, h, Mhalve, alpha):
