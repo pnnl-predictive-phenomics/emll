@@ -102,3 +102,10 @@ ENV/
 
 # Emacs Autosaves
 *~
+
+# mypy
+.mpyp_cache
+mypy.ini
+
+# pytest cache
+.pytest_cache
