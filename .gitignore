@@ -96,3 +96,16 @@ ENV/
 .ropeproject
 
 *.gz
+
+# MacOS directory files
+.DS_Store
+
+# Emacs Autosaves
+*~
+
+# mypy
+.mpyp_cache
+mypy.ini
+
+# pytest cache
+.pytest_cache

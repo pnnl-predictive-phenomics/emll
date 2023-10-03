@@ -1,23 +1,23 @@
+""" Model Definition File for LinLog algorithm """
 import warnings
 
 import numpy as np
 import scipy as sp
 
-import theano
-import theano.tensor as T
-import theano.tensor.slinalg
-floatX = theano.config.floatX
+import pytensor
+import pytensor.tensor as at
+import pytensor.tensor.slinalg
 
-from emll.theano_utils import (RegularizedSolve, LeastSquaresSolve,
-                               lstsq_wrapper)
-
+from emll.pytensor_utils import RegularizedSolve, LeastSquaresSolve, lstsq_wrapper
 from emll.util import compute_smallbone_reduction, compute_waldherr_reduction
 
 
-class LinLogBase(object):
+_floatX = pytensor.config.floatX
 
-    def __init__(self, N, Ex, Ey, v_star, reduction_method='smallbone'):
-        """A class to perform the linear algebra underlying the 
+
+class LinLogBase(object):
+    def __init__(self, N, Ex, Ey, v_star, reduction_method="smallbone"):
+        """A class to perform the linear algebra underlying the
         decomposition method.
 
 
@@ -36,22 +36,22 @@ class LinLogBase(object):
             A length M vector specifying the original steady-state flux
             solution of the model.
         lam : float
-            The $\lambda$ value to use for tikhonov regularization
+            The λ value to use for tikhonov regularization
         reduction_method : 'waldherr', 'smallbone', or None
             Type of stoichiometric decomposition to perform (default
             'smallbone')
 
-        
+
         """
         self.nm, self.nr = N.shape
         self.ny = Ey.shape[1]
 
         self.N = N
 
-        if reduction_method is 'smallbone':
+        if reduction_method == "smallbone":
             self.Nr, self.L, _ = compute_smallbone_reduction(N, Ex, v_star)
 
-        elif reduction_method is 'waldherr':
+        elif reduction_method == "waldherr":
             self.Nr, _, _ = compute_waldherr_reduction(N)
 
         elif reduction_method is None:
@@ -62,8 +62,7 @@ class LinLogBase(object):
 
         assert np.all(v_star >= 0), "reference fluxes should be nonnegative"
         if np.any(np.isclose(v_star, 0)):
-            warnings.warn(
-                "v_star contains zero entries, this will cause problems")
+            warnings.warn("v_star contains zero entries, this will cause problems")
 
         self.v_star = v_star
 
@@ -72,11 +71,8 @@ class LinLogBase(object):
         assert len(v_star) == self.nr, "v_star is the wrong length"
         assert np.allclose(self.Nr @ v_star, 0), "reference not steady state"
 
-
     def _generate_default_inputs(self, Ex=None, Ey=None, en=None, yn=None):
-        """Create matricies representing no perturbation is input is None.
-           
-        """
+        """Create matricies representing no perturbation is input is None."""
         if Ex is None:
             Ex = self.Ex
 
@@ -91,8 +87,13 @@ class LinLogBase(object):
 
         return Ex, Ey, en, yn
 
-
-    def steady_state_mat(self, Ex=None, Ey=None, en=None, yn=None,):
+    def steady_state_mat(
+        self,
+        Ex=None,
+        Ey=None,
+        en=None,
+        yn=None,
+    ):
         """Calculate a the steady-state transformed metabolite concentrations
         and fluxes using a matrix solve method.
 
@@ -116,20 +117,19 @@ class LinLogBase(object):
 
         return xn, vn
 
-
-    def steady_state_theano(self, Ex, Ey=None, en=None, yn=None, method='scan'):
+    def steady_state_pytensor(self, Ex, Ey=None, en=None, yn=None, method="scan"):
         """Calculate a the steady-state transformed metabolite concentrations
-        and fluxes using theano.
+        and fluxes using PyTensor.
 
-        Ex, Ey, en and yn should be theano matrices
+        Ex, Ey, en and yn should be pytensor matrices
 
         solver: function
             A function to solve Ax = b for a (possibly) singular A. Should
-            accept theano matrices A and b, and return a symbolic x.
+            accept pytensor matrices A and b, and return a symbolic x.
         """
 
         if Ey is None:
-            Ey = T.as_tensor_variable(Ey)
+            Ey = at.as_tensor_variable(Ey)
 
         if isinstance(en, np.ndarray):
             en = np.atleast_2d(en)
@@ -140,39 +140,35 @@ class LinLogBase(object):
         if isinstance(yn, np.ndarray):
             yn = np.atleast_2d(yn)
 
-        en = T.as_tensor_variable(en)
-        yn = T.as_tensor_variable(yn)
+        en = at.as_tensor_variable(en)
+        yn = at.as_tensor_variable(yn)
 
-        e_diag = en.dimshuffle(0, 1, 'x') * np.diag(self.v_star)
+        e_diag = en.dimshuffle(0, 1, "x") * np.diag(self.v_star)
         N_rep = self.Nr.reshape((-1, *self.Nr.shape)).repeat(n_exp, axis=0)
-        N_hat = T.batched_dot(N_rep, e_diag)
+        N_hat = at.batched_dot(N_rep, e_diag)
 
-        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=floatX)
-        As = T.dot(N_hat, Ex)
-    
-        bs = T.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, 'x'))
-        if method == 'scan':
-            xn, _ = theano.scan(
-                lambda A, b: self.solve_theano(A, b),
-                sequences=[As, bs], strict=True)
+        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=_floatX)
+        As = at.dot(N_hat, Ex)
+
+        bs = at.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, "x"))
+        if method == "scan":
+            xn, _ = pytensor.scan(
+                lambda A, b: self.solve_pytensor(A, b), sequences=[As, bs], strict=True
+            )
         else:
             xn_list = [None] * n_exp
             for i in range(n_exp):
-                xn_list[i] = self.solve_theano(As[i], bs[i])
-            xn = T.stack(xn_list)
+                xn_list[i] = self.solve_pytensor(As[i], bs[i])
+            xn = at.stack(xn_list)
 
-        vn = en * (np.ones(self.nr) +
-                   T.dot(Ex, xn.T).T +
-                   T.dot(Ey, yn.T).T)
+        vn = en * (np.ones(self.nr) + at.dot(Ex, xn.T).T + at.dot(Ey, yn.T).T)
 
         return xn, vn
 
-
-    def metabolite_control_coefficient(self, Ex=None, Ey=None,
-                                       en=None, yn=None):
-        """ Calculate the metabolite control coefficient matrix at the desired
+    def metabolite_control_coefficient(self, Ex=None, Ey=None, en=None, yn=None):
+        """Calculate the metabolite control coefficient matrix at the desired
         perturbed state.
-        
+
         Note: These don't agree with the older method (using the pseudoinverse
         link matrix), so maybe don't trust MCC's all that much. FCC's agree though.
 
@@ -181,21 +177,20 @@ class LinLogBase(object):
         Ex, Ey, en, yn = self._generate_default_inputs(Ex, Ey, en, yn)
 
         xn, vn = self.steady_state_mat(Ex, Ey, en, yn)
-  
+
         # Calculate the elasticity matrix at the new steady-state
         Ex_ss = np.diag(en / vn) @ Ex
 
         Cx = -self.solve(
             self.Nr @ np.diag(vn * self.v_star) @ Ex_ss,
-            self.Nr @ np.diag(vn * self.v_star))
+            self.Nr @ np.diag(vn * self.v_star),
+        )
 
         return Cx
 
-
-    def flux_control_coefficient(self, Ex=None, Ey=None,
-                                 en=None, yn=None):
-        """ Calculate the metabolite control coefficient matrix at the desired
-        perturbed state """
+    def flux_control_coefficient(self, Ex=None, Ey=None, en=None, yn=None):
+        """Calculate the metabolite control coefficient matrix at the desired
+        perturbed state"""
 
         Ex, Ey, en, yn = self._generate_default_inputs(Ex, Ey, en, yn)
 
@@ -211,65 +206,58 @@ class LinLogBase(object):
 
 
 class LinLogSymbolic2x2(LinLogBase):
-    """ Class for handling special case of a 2x2 full rank A matrix """
+    """Class for handling special case of a 2x2 full rank A matrix"""
 
     def solve(self, A, bi):
-        a = A[0,0]
-        b = A[0,1]
-        c = A[1,0]
-        d = A[1,1]
+        a = A[0, 0]
+        b = A[0, 1]
+        c = A[1, 0]
+        d = A[1, 1]
 
         A_inv = np.array([[d, -b], [-c, a]]) / (a * d - b * c)
         return A_inv @ bi
 
+    def solve_pytensor(self, A, bi):
+        a = A[0, 0]
+        b = A[0, 1]
+        c = A[1, 0]
+        d = A[1, 1]
 
-    def solve_theano(self, A, bi):
-        a = A[0,0]
-        b = A[0,1]
-        c = A[1,0]
-        d = A[1,1]
-
-        A_inv = (T.stacklists([[d, -b], [-c, a]]) / (a * d - b * c))
-        return T.dot(A_inv, bi).squeeze()
+        A_inv = at.stacklists([[d, -b], [-c, a]]) / (a * d - b * c)
+        return at.dot(A_inv, bi).squeeze()
 
 
 class LinLogLinkMatrix(LinLogBase):
-
     def solve(self, A, b):
-
         A_linked = A @ self.L
         z = sp.linalg.solve(A_linked, b)
         return self.L @ z
 
-
-    def solve_theano(self, A, b):
-        
-        A_linked = T.dot(A, self.L)
-        z = theano.tensor.slinalg.solve(A_linked, b).squeeze()
-        return T.dot(self.L, z)
+    def solve_pytensor(self, A, b):
+        A_linked = at.dot(A, self.L)
+        z = pytensor.tensor.slinalg.solve(A_linked, b).squeeze()
+        return at.dot(self.L, z)
 
 
 class LinLogLeastNorm(LinLogBase):
-    """ Uses dgels to solve for the least-norm solution to the linear equation """
+    """Uses dgels to solve for the least-norm solution to the linear equation"""
 
-    def __init__(self, N, Ex, Ey, v_star, driver='gelsy', **kwargs):
-
+    def __init__(self, N, Ex, Ey, v_star, driver="gelsy", **kwargs):
         self.driver = driver
         LinLogBase.__init__(self, N, Ex, Ey, v_star, **kwargs)
 
     def solve(self, A, b):
         return lstsq_wrapper(A, b, self.driver)
 
-    def solve_theano(self, A, b):
+    def solve_pytensor(self, A, b):
         rsolve_op = LeastSquaresSolve(driver=self.driver)
         return rsolve_op(A, b).squeeze()
 
 
 class LinLogTikhonov(LinLogBase):
-    """ Adds regularization to the linear solve, assumes A matrix is positive semi-definite """
+    """Adds regularization to the linear solve, assumes A matrix is positive semi-definite"""
 
     def __init__(self, N, Ex, Ey, v_star, lambda_=None, **kwargs):
-
         self.lambda_ = lambda_ if lambda_ else 0
         assert self.lambda_ >= 0, "lambda must be positive"
 
@@ -282,30 +270,37 @@ class LinLogTikhonov(LinLogBase):
         cho = sp.linalg.cho_factor(A_hat)
         return sp.linalg.cho_solve(cho, b_hat)
 
-    def solve_theano(self, A, b):
+    def solve_pytensor(self, A, b):
         rsolve_op = RegularizedSolve(self.lambda_)
         return rsolve_op(A, b).squeeze()
 
 
 class LinLogPinv(LinLogLeastNorm):
-
-    def steady_state_theano(self, Ex, Ey=None, en=None, yn=None,
-                            solution_basis=None, method='scan', driver='gelsy'):
+    def steady_state_pytensor(
+        self,
+        Ex,
+        Ey=None,
+        en=None,
+        yn=None,
+        solution_basis=None,
+        method="scan",
+        driver="gelsy",
+    ):
         """Calculate a the steady-state transformed metabolite concentrations
-        and fluxes using theano.
+        and fluxes using pytensor.
 
-        Ex, Ey, en and yn should be theano matrices
+        Ex, Ey, en and yn should be pytensor matrices
 
-        solution_basis is a (n_exp, nr) theano matrix of the current solution
+        solution_basis is a (n_exp, nr) pytensor matrix of the current solution
         basis.
 
         solver: function
             A function to solve Ax = b for a (possibly) singular A. Should
-            accept theano matrices A and b, and return a symbolic x.
+            accept pytensor matrices A and b, and return a symbolic x.
         """
 
         if Ey is None:
-            Ey = T.as_tensor_variable(Ey)
+            Ey = at.as_tensor_variable(Ey)
 
         if isinstance(en, np.ndarray):
             en = np.atleast_2d(en)
@@ -316,41 +311,39 @@ class LinLogPinv(LinLogLeastNorm):
         if isinstance(yn, np.ndarray):
             yn = np.atleast_2d(yn)
 
-        en = T.as_tensor_variable(en)
-        yn = T.as_tensor_variable(yn)
+        en = at.as_tensor_variable(en)
+        yn = at.as_tensor_variable(yn)
 
-        e_diag = en.dimshuffle(0, 1, 'x') * np.diag(self.v_star)
+        e_diag = en.dimshuffle(0, 1, "x") * np.diag(self.v_star)
         N_rep = self.Nr.reshape((-1, *self.Nr.shape)).repeat(n_exp, axis=0)
-        N_hat = T.batched_dot(N_rep, e_diag)
+        N_hat = at.batched_dot(N_rep, e_diag)
 
-        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=floatX)
-        As = T.dot(N_hat, Ex)
-    
-        bs = T.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, 'x'))
+        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=_floatX)
+        As = at.dot(N_hat, Ex)
+
+        bs = at.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, "x"))
 
         # Here we have to redefine the entire function, since we have to pass
         # an additional argument to solve.
         def pinv_solution(A, b, basis=None):
-            A_pinv = T.nlinalg.pinv(A)
-            x_ln = T.dot(A_pinv, b).squeeze()
-            x = x_ln + T.dot((T.eye(self.nm) - T.dot(A_pinv, A)), basis)
+            A_pinv = at.nlinalg.pinv(A)
+            x_ln = at.dot(A_pinv, b).squeeze()
+            x = x_ln + at.dot((at.eye(self.nm) - at.dot(A_pinv, A)), basis)
             return x
-        
-        if method == 'scan':
-            xn, _ = theano.scan(
+
+        if method == "scan":
+            xn, _ = pytensor.scan(
                 lambda A, b, w: pinv_solution(A, b, basis=w),
-                sequences=[As, bs, solution_basis], strict=True)
+                sequences=[As, bs, solution_basis],
+                strict=True,
+            )
 
         else:
             xn_list = [None] * n_exp
             for i in range(n_exp):
                 xn_list[i] = pinv_solution(As[i], bs[i], solution_basis[i])
-            xn = T.stack(xn_list)
+            xn = at.stack(xn_list)
 
-        vn = en * (np.ones(self.nr) +
-                   T.dot(Ex, xn.T).T +
-                   T.dot(Ey, yn.T).T)
+        vn = en * (np.ones(self.nr) + at.dot(Ex, xn.T).T + at.dot(Ey, yn.T).T)
 
         return xn, vn
-
-

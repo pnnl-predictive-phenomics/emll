@@ -4,13 +4,15 @@ import numpy as np
 
 import pandas as pd
 
+from cobra.util.array import create_stoichiometric_matrix
+
 currdir = os.path.dirname(os.path.abspath(__file__))
 
 def get_N_v(model):
 
     solution = model.optimize()
 
-    N = cobra.util.create_stoichiometric_matrix(model)
+    N = create_stoichiometric_matrix(model)
     v_star = solution.fluxes.values
 
     for i, v in enumerate(v_star):
@@ -44,14 +46,14 @@ def load_teusink():
     N, v_star = get_N_v(model)
 
     return model, N, v_star
-    
+
 def load_mendes():
     from .mendes_model import model
-    N = np.array(model.to_array_based_model().S.todense())
+    N = create_stoichiometric_matrix(model)
     v_star = np.array([0.0289273 ,  0.0289273 ,  0.01074245,  0.01074245,  0.01074245,
                        0.01818485,  0.01818485,  0.01818485])
     return model, N, v_star
-    
+
 def load_textbook():
 
     model = cobra.io.load_json_model(currdir + '/textbook_reduced.json')
@@ -130,10 +132,10 @@ def construct_model_from_mat(N, rxn_names, met_names):
     model = cobra.Model('test_model')
 
     model.add_metabolites([cobra.Metabolite(id=met_name) for met_name in met_names])
-            
+
     for row, rxn_name in zip(N.T, rxn_names):
         reaction = cobra.Reaction(id=rxn_name)
-        model.add_reaction(reaction)
+        model.add_reactions([reaction])
         reaction.add_metabolites({
             met_id: float(stoich) for met_id, stoich in zip(met_names, row)
             if abs(stoich) > 1E-6})
