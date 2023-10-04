@@ -1,6 +1,6 @@
 # Ensemble Modeling with Linear-Logarithmic Kinetics (emll)
 
-This project is a maintained fork of the code pstjohn/emll using PyTensor over Theano. 
+This project is a maintained fork of the code [pstjohn/emll](https://github.com/pstjohn/emll) using PyTensor over Theano. 
 
 Works using emll can be found:
 - [Bayesian Inference of Metabolic Kinetics from Genome-Scale Multiomics Data](https://dx.plos.org/10.1371/journal.pcbi.1007424)
