@@ -9,9 +9,17 @@ Works using emll can be found:
 ## Installation
 
 To install:
+
 ```shell
-conda env create -f environment.yml
-conda activate idp_new
+git clone https://github.com/PNNL-CompBio/emll.git
+cd emll
+python -m pip install -e .
+```
+
+Test install by running:
+
+```shell
+python -c "import emll"
 ```
 
 This code uses the intelpython distribution for some faster blas routines.

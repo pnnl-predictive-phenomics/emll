@@ -19,7 +19,7 @@ class SymPosSolve(Solve):
         output_storage[0][0] = rval
 
 
-sympos_solve = SymPosSolve(assume_a="sym")
+sympos_solve = SymPosSolve(assume_a="sym", b_ndim=2)
 
 
 class RegularizedSolve(Solve):
@@ -31,8 +31,9 @@ class RegularizedSolve(Solve):
 
     __props__ = ("lambda_", *Solve.__props__)
 
-    def __init__(self, lambda_=None):
-        Solve.__init__(self)
+    def __init__(self, lambda_=None, b_ndim=None):
+        self.b_ndim = 2
+        Solve.__init__(self, b_ndim=self.b_ndim)
         self.lambda_ = lambda_ if lambda_ is not None else 0.0
 
     def perform(self, node, inputs, output_storage):
@@ -72,11 +73,12 @@ class LeastSquaresSolve(Solve):
 
     """
 
-    __props__ = ("driver", *Solve.__props__)
+    __props__ = ("driver", *Solve.__props__)  # contains b_ndim
 
-    def __init__(self, driver="gelsy"):
+    def __init__(self, driver="gelsy", b_ndim=None):
         self.driver = driver
-        Solve.__init__(self)
+        self.b_ndim = 2
+        Solve.__init__(self, b_ndim=self.b_ndim)
 
     def perform(self, node, inputs, output_storage):
         A, b = inputs

@@ -15,7 +15,7 @@ from emll.util import compute_smallbone_reduction, compute_waldherr_reduction
 _floatX = pytensor.config.floatX
 
 
-class LinLogBase(object):
+class LinLogBase:
     def __init__(self, N, Ex, Ey, v_star, reduction_method="smallbone"):
         """A class to perform the linear algebra underlying the
         decomposition method.
@@ -250,7 +250,7 @@ class LinLogLeastNorm(LinLogBase):
         return lstsq_wrapper(A, b, self.driver)
 
     def solve_pytensor(self, A, b):
-        rsolve_op = LeastSquaresSolve(driver=self.driver)
+        rsolve_op = LeastSquaresSolve(driver=self.driver, b_ndim=2)
         return rsolve_op(A, b).squeeze()
 
 

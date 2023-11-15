@@ -25,15 +25,11 @@ def create_elasticity_matrix(model):
                 array[r_ind(reaction), m_ind(metabolite)] = -np.sign(stoich)
 
             # Irrevesible in forward direction, only assign if met is reactant
-            elif (
-                (not reaction.reversibility) & (reaction.upper_bound > 0) & (stoich < 0)
-            ):
+            elif (not reaction.reversibility) & (reaction.upper_bound > 0) & (stoich < 0):
                 array[r_ind(reaction), m_ind(metabolite)] = -np.sign(stoich)
 
             # Irreversible in reverse direction, only assign in met is product
-            elif (
-                (not reaction.reversibility) & (reaction.lower_bound < 0) & (stoich > 0)
-            ):
+            elif (not reaction.reversibility) & (reaction.lower_bound < 0) & (stoich > 0):
                 array[r_ind(reaction), m_ind(metabolite)] = -np.sign(stoich)
 
     return array
@@ -47,8 +43,7 @@ def create_Ey_matrix(model):
 
     boundary_indexes = [model.reactions.index(r) for r in model.medium.keys()]
     boundary_directions = [
-        1 if r.products else -1
-        for r in model.reactions.query(lambda x: x.boundary, None)
+        1 if r.products else -1 for r in model.reactions.query(lambda x: x.boundary, None)
     ]
     ny = len(boundary_indexes)
     Ey = np.zeros((len(model.reactions), ny))
@@ -113,7 +108,7 @@ def compute_smallbone_reduction(N, Ex, v_star, tol=1e-8):
 
 
 def initialize_elasticity(
-    N, name=None, b=0.01, alpha=5, sd=1, m_compartments=None, r_compartments=None
+    N, name=None, b=0.01, alpha=5, sigma=1, m_compartments=None, r_compartments=None
 ):
     """Initialize the elasticity matrix, adjusting priors to account for
     reaction stoichiometry. Uses `SkewNormal(mu=0, sd=sd, alpha=sign*alpha)`
@@ -156,9 +151,7 @@ def initialize_elasticity(
         name = "ex"
 
     if m_compartments is not None:
-        assert (
-            r_compartments is not None
-        ), "reaction and metabolite compartments must both be given"
+        assert r_compartments is not None, "reaction and metabolite compartments must both be given"
 
         regulation_array = np.array(
             [[a in b for a in m_compartments] for b in r_compartments]
@@ -195,17 +188,17 @@ def initialize_elasticity(
     if alpha is not None:
         e_kin_entries = pm.SkewNormal(
             name + "_kinetic_entries",
-            sd=sd,
+            sigma=sigma,
             alpha=alpha,
             shape=num_nonzero,
-            testval=0.1 + np.abs(np.random.randn(num_nonzero)),
+            initval=0.1 + np.abs(np.random.randn(num_nonzero)),
         )
     else:
         e_kin_entries = pm.HalfNormal(
             name + "_kinetic_entries",
-            sd=sd,
+            sigma=sigma,
             shape=num_nonzero,
-            testval=0.1 + np.abs(np.random.randn(num_nonzero)),
+            initval=0.1 + np.abs(np.random.randn(num_nonzero)),
         )
 
     e_cap_entries = pm.Laplace(
@@ -213,7 +206,7 @@ def initialize_elasticity(
         mu=0,
         b=b,
         shape=num_regulations,
-        testval=b * np.random.randn(num_regulations),
+        initval=b * np.random.randn(num_regulations),
     )
 
     flat_e_entries = at.concatenate(
