@@ -131,7 +131,7 @@ def initialize_elasticity(
     alpha : float
         Hyperprior to use for the SkewNormal distributions. As alpha ->
         infinity, these priors begin to resemble half-normal distributions.
-    sd : float
+    sigma : float
         Scale parameter for the SkewNormal distribution.
     m_compartments : list
         Compartments of metabolites. If None, use a densely connected

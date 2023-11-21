@@ -135,7 +135,7 @@ class LinLogBase:
             en = np.atleast_2d(en)
             n_exp = en.shape[0]
         else:
-            n_exp = en.tag.test_value.shape[0]
+            n_exp = en.shape.eval()[0]
 
         if isinstance(yn, np.ndarray):
             yn = np.atleast_2d(yn)
