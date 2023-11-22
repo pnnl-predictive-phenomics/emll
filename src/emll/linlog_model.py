@@ -1,16 +1,14 @@
-""" Model Definition File for LinLog algorithm """
+"""Model Definition File for LinLog algorithm"""
 import warnings
 
 import numpy as np
-import scipy as sp
-
 import pytensor
 import pytensor.tensor as at
 import pytensor.tensor.slinalg
+import scipy as sp
 
-from emll.pytensor_utils import RegularizedSolve, LeastSquaresSolve, lstsq_wrapper
+from emll.pytensor_utils import LeastSquaresSolve, RegularizedSolve, lstsq_wrapper
 from emll.util import compute_smallbone_reduction, compute_waldherr_reduction
-
 
 _floatX = pytensor.config.floatX
 

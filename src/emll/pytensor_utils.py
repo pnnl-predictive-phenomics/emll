@@ -1,11 +1,9 @@
 import numpy as np
 import scipy as sp
-
-from scipy.linalg import LinAlgError
-from scipy.linalg.lapack import get_lapack_funcs
-
 from pytensor import tensor
 from pytensor.tensor.slinalg import Solve
+from scipy.linalg import LinAlgError
+from scipy.linalg.lapack import get_lapack_funcs
 
 
 class SymPosSolve(Solve):
