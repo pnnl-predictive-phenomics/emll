@@ -1,4 +1,5 @@
-"""Model Definition File for LinLog algorithm"""
+"""Model Definition File for LinLog algorithm."""
+
 import warnings
 
 import numpy as np
@@ -10,160 +11,168 @@ import scipy as sp
 from emll.pytensor_utils import LeastSquaresSolve, RegularizedSolve, lstsq_wrapper
 from emll.util import compute_smallbone_reduction, compute_waldherr_reduction
 
-_floatX = pytensor.config.floatX
+_floatx = pytensor.config.floatX
 
 
 class LinLogBase:
-    def __init__(self, N, Ex, Ey, v_star, reduction_method="smallbone"):
-        """A class to perform the linear algebra underlying the
-        decomposition method.
-
+    def __init__(self, stoich, epsilon_x, epsilon_y, v_star, reduction_method="smallbone"):
+        """Perform linear algebra underlying decomposition methods.
 
         Parameters
         ----------
-        N : np.array
-            The full stoichiometric matrix of the considered model. Must be of
-            dimensions MxN
-        Ex : np.array
-            An NxM array of the elasticity coefficients for the given linlog
-            model.
-        Ey : np.array
-            An NxP array of the elasticity coefficients for the external
-            species.
-        v_star : np.array
-            A length M vector specifying the original steady-state flux
-            solution of the model.
-        lam : float
-            The λ value to use for tikhonov regularization
-        reduction_method : 'waldherr', 'smallbone', or None
-            Type of stoichiometric decomposition to perform (default
-            'smallbone')
+            stoich (numpy.ndarray): The stoichiometric matrix of the model.
+            epsilon_x (numpy.ndarray): The elasticity coefficients for the internal species.
+            epsilon_y (numpy.ndarray): The elasticity coefficients for the external species.
+            v_star (numpy.ndarray): The reference steady-state flux.
+            lam (float): The Tikhonov regularization parameter.
+            reduction_method (str): The reduction method to use ('waldherr' or 'smallbone').
 
-
+        Returns
+        -------
+            None
         """
-        self.nm, self.nr = N.shape
-        self.ny = Ey.shape[1]
+        self.n_m, self.n_r = stoich.shape
+        self.n_y = epsilon_y.shape[1]
 
-        self.N = N
+        self.stoich = stoich
 
         if reduction_method == "smallbone":
-            self.Nr, self.L, _ = compute_smallbone_reduction(N, Ex, v_star)
+            self.stoich_reduced, self.link_matrix, _ = compute_smallbone_reduction(
+                stoich, epsilon_x, v_star
+            )
 
         elif reduction_method == "waldherr":
-            self.Nr, _, _ = compute_waldherr_reduction(N)
+            self.stoich_reduced, _, _ = compute_waldherr_reduction(stoich)
 
         elif reduction_method is None:
-            self.Nr = N
+            self.stoich_reduced = stoich
 
-        self.Ex = Ex
-        self.Ey = Ey
+        self.epsilon_x = epsilon_x
+        self.epsilon_y = epsilon_y
 
-        assert np.all(v_star >= 0), "reference fluxes should be nonnegative"
+        if np.all(v_star >= 0):
+            raise ValueError("reference fluxes should be nonnegative")
         if np.any(np.isclose(v_star, 0)):
-            warnings.warn("v_star contains zero entries, this will cause problems")
+            warnings.warn("v_star contains zero entries, this will cause problems", stacklevel=2)
 
         self.v_star = v_star
 
-        assert Ex.shape == (self.nr, self.nm), "Ex is the wrong shape"
-        assert Ey.shape == (self.nr, self.ny), "Ey is the wrong shape"
-        assert len(v_star) == self.nr, "v_star is the wrong length"
-        assert np.allclose(self.Nr @ v_star, 0), "reference not steady state"
+        if epsilon_x.shape != (self.n_r, self.n_m):
+            raise ValueError("epsilon_x is the wrong shape")
+        if epsilon_y.shape != (self.n_r, self.n_y):
+            raise ValueError("epsilon_y is the wrong shape")
+        if len(v_star) != self.n_r:
+            raise ValueError("v_star is the wrong length")
+        if not np.allclose(self.stoich_reduced @ v_star, 0):
+            raise ValueError("reference not steady state")
 
-    def _generate_default_inputs(self, Ex=None, Ey=None, en=None, yn=None):
+    def _generate_default_inputs(self, epsilon_x=None, epsilon_y=None, e_n=None, y_n=None):
         """Create matricies representing no perturbation is input is None."""
-        if Ex is None:
-            Ex = self.Ex
+        if epsilon_x is None:
+            epsilon_x = self.epsilon_x
 
-        if Ey is None:
-            Ey = self.Ey
+        if epsilon_y is None:
+            epsilon_y = self.epsilon_y
 
-        if en is None:
-            en = np.ones(self.nr)
+        if e_n is None:
+            e_n = np.ones(self.n_r)
 
-        if yn is None:
-            yn = np.zeros(self.ny)
+        if y_n is None:
+            y_n = np.zeros(self.n_y)
 
-        return Ex, Ey, en, yn
+        return epsilon_x, epsilon_y, e_n, y_n
 
     def steady_state_mat(
         self,
-        Ex=None,
-        Ey=None,
-        en=None,
-        yn=None,
+        epsilon_x=None,
+        epsilon_y=None,
+        e_n=None,
+        y_n=None,
     ):
-        """Calculate a the steady-state transformed metabolite concentrations
+        """Calcualte steady-state matrix.
+
+        Calculate a the steady-state transformed metabolite concentrations
         and fluxes using a matrix solve method.
 
-        en: np.ndarray
+        Parameters
+        ----------
+        e_n: np.ndarray
             a NR vector of perturbed normalized enzyme activities
-        yn: np.ndarray
+        y_n: np.ndarray
             a NY vector of normalized external metabolite concentrations
-        Ex, Ey: optional replacement elasticity matrices
+        epsilon_x, epsilon_y: optional replacement elasticity matrices
 
+        Returns
+        -------
+        x_n: the steady state concentration values
+
+        v_n: the steady state flux values
         """
-        Ex, Ey, en, yn = self._generate_default_inputs(Ex, Ey, en, yn)
+        epsilon_x, epsilon_y, e_n, y_n = self._generate_default_inputs(
+            epsilon_x, epsilon_y, e_n, y_n
+        )
 
         # Calculate steady-state concentrations using linear solve.
-        N_hat = self.Nr @ np.diag(self.v_star * en)
-        A = N_hat @ Ex
-        b = -N_hat @ (np.ones(self.nr) + Ey @ yn)
-        xn = self.solve(A, b)
+        n_hat = self.stoich_reduced @ np.diag(self.v_star * e_n)
+        a_matrix = n_hat @ epsilon_x
+        b_matrix = -n_hat @ (np.ones(self.n_r) + epsilon_y @ y_n)
+        x_n = self.solve(a_matrix, b_matrix)
 
         # Plug concentrations into the flux equation.
-        vn = en * (np.ones(self.nr) + Ex @ xn + Ey @ yn)
+        v_n = e_n * (np.ones(self.n_r) + epsilon_x @ x_n + epsilon_y @ y_n)
 
-        return xn, vn
+        return x_n, v_n
 
-    def steady_state_pytensor(self, Ex, Ey=None, en=None, yn=None, method="scan"):
+    def steady_state_pytensor(self, epsilon_x, epsilon_y=None, e_n=None, y_n=None, method="scan"):
         """Calculate a the steady-state transformed metabolite concentrations
         and fluxes using PyTensor.
 
-        Ex, Ey, en and yn should be pytensor matrices
+        epsilon_x, epsilon_y, e_n and y_n should be pytensor matrices
 
         solver: function
             A function to solve Ax = b for a (possibly) singular A. Should
-            accept pytensor matrices A and b, and return a symbolic x.
+            accept pytensor matrices a_matrix and b_matrix, and return a symbolic x.
         """
+        if epsilon_y is None:
+            epsilon_y = at.as_tensor_variable(epsilon_y)
 
-        if Ey is None:
-            Ey = at.as_tensor_variable(Ey)
-
-        if isinstance(en, np.ndarray):
-            en = np.atleast_2d(en)
-            n_exp = en.shape[0]
+        if isinstance(e_n, np.ndarray):
+            e_n = np.atleast_2d(e_n)
+            n_exp = e_n.shape[0]
         else:
-            n_exp = en.shape.eval()[0]
+            n_exp = e_n.shape.eval()[0]
 
-        if isinstance(yn, np.ndarray):
-            yn = np.atleast_2d(yn)
+        if isinstance(y_n, np.ndarray):
+            y_n = np.atleast_2d(y_n)
 
-        en = at.as_tensor_variable(en)
-        yn = at.as_tensor_variable(yn)
+        e_n = at.as_tensor_variable(e_n)
+        y_n = at.as_tensor_variable(y_n)
 
-        e_diag = en.dimshuffle(0, 1, "x") * np.diag(self.v_star)
-        N_rep = self.Nr.reshape((-1, *self.Nr.shape)).repeat(n_exp, axis=0)
-        N_hat = at.batched_dot(N_rep, e_diag)
+        e_diag = e_n.dimshuffle(0, 1, "x") * np.diag(self.v_star)
+        n_rep = self.stoich_reduced.reshape((-1, *self.stoich_reduced.shape)).repeat(n_exp, axis=0)
+        n_hat = at.batched_dot(n_rep, e_diag)
 
-        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=_floatX)
-        As = at.dot(N_hat, Ex)
+        inner_v = epsilon_y.dot(y_n.T).T + np.ones(self.n_r, dtype=_floatx)
+        a_matrix_s = at.dot(n_hat, epsilon_x)
 
-        bs = at.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, "x"))
+        b_matrix_s = at.batched_dot(-n_hat, inner_v.dimshuffle(0, 1, "x"))
         if method == "scan":
-            xn, _ = pytensor.scan(
-                lambda A, b: self.solve_pytensor(A, b), sequences=[As, bs], strict=True
+            x_n, _ = pytensor.scan(
+                lambda a_matrix, b_matrix: self.solve_pytensor(a_matrix, b_matrix),
+                sequences=[a_matrix_s, b_matrix_s],
+                strict=True,
             )
         else:
-            xn_list = [None] * n_exp
+            x_n_list = [None] * n_exp
             for i in range(n_exp):
-                xn_list[i] = self.solve_pytensor(As[i], bs[i])
-            xn = at.stack(xn_list)
+                x_n_list[i] = self.solve_pytensor(a_matrix_s[i], b_matrix_s[i])
+            x_n = at.stack(x_n_list)
 
-        vn = en * (np.ones(self.nr) + at.dot(Ex, xn.T).T + at.dot(Ey, yn.T).T)
+        v_n = e_n * (np.ones(self.n_r) + at.dot(epsilon_x, x_n.T).T + at.dot(epsilon_y, y_n.T).T)
 
-        return xn, vn
+        return x_n, v_n
 
-    def metabolite_control_coefficient(self, Ex=None, Ey=None, en=None, yn=None):
+    def metabolite_control_coefficient(self, epsilon_x=None, epsilon_y=None, e_n=None, y_n=None):
         """Calculate the metabolite control coefficient matrix at the desired
         perturbed state.
 
@@ -171,177 +180,201 @@ class LinLogBase:
         link matrix), so maybe don't trust MCC's all that much. FCC's agree though.
 
         """
-
-        Ex, Ey, en, yn = self._generate_default_inputs(Ex, Ey, en, yn)
-
-        xn, vn = self.steady_state_mat(Ex, Ey, en, yn)
-
-        # Calculate the elasticity matrix at the new steady-state
-        Ex_ss = np.diag(en / vn) @ Ex
-
-        Cx = -self.solve(
-            self.Nr @ np.diag(vn * self.v_star) @ Ex_ss,
-            self.Nr @ np.diag(vn * self.v_star),
+        epsilon_x, epsilon_y, e_n, y_n = self._generate_default_inputs(
+            epsilon_x, epsilon_y, e_n, y_n
         )
 
-        return Cx
-
-    def flux_control_coefficient(self, Ex=None, Ey=None, en=None, yn=None):
-        """Calculate the metabolite control coefficient matrix at the desired
-        perturbed state"""
-
-        Ex, Ey, en, yn = self._generate_default_inputs(Ex, Ey, en, yn)
-
-        xn, vn = self.steady_state_mat(Ex, Ey, en, yn)
+        x_n, v_n = self.steady_state_mat(epsilon_x, epsilon_y, e_n, y_n)
 
         # Calculate the elasticity matrix at the new steady-state
-        Ex_ss = np.diag(en / vn) @ Ex
+        epsilon_x_ss = np.diag(e_n / v_n) @ epsilon_x
 
-        Cx = self.metabolite_control_coefficient(Ex, Ey, en, yn)
-        Cv = np.eye(self.nr) + Ex_ss @ Cx
+        c_x = -self.solve(
+            self.stoich_reduced @ np.diag(v_n * self.v_star) @ epsilon_x_ss,
+            self.stoich_reduced @ np.diag(v_n * self.v_star),
+        )
 
-        return Cv
+        return c_x
+
+    def flux_control_coefficient(self, epsilon_x=None, epsilon_y=None, e_n=None, y_n=None):
+        """Calculate the metabolite control coefficient matrix at the desired
+        perturbed state
+        """
+        epsilon_x, epsilon_y, e_n, y_n = self._generate_default_inputs(
+            epsilon_x, epsilon_y, e_n, y_n
+        )
+
+        x_n, v_n = self.steady_state_mat(epsilon_x, epsilon_y, e_n, y_n)
+
+        # Calculate the elasticity matrix at the new steady-state
+        epsilon_x_ss = np.diag(e_n / v_n) @ epsilon_x
+
+        c_x = self.metabolite_control_coefficient(epsilon_x, epsilon_y, e_n, y_n)
+        c_v = np.eye(self.n_r) + epsilon_x_ss @ c_x
+
+        return c_v
 
 
 class LinLogSymbolic2x2(LinLogBase):
     """Class for handling special case of a 2x2 full rank A matrix"""
 
-    def solve(self, A, bi):
-        a = A[0, 0]
-        b = A[0, 1]
-        c = A[1, 0]
-        d = A[1, 1]
+    def solve(self, a_matrix, b_matrix_i):
+        """Solves the linear system Ax = b for a 2x2 matrix A and a 2x1 vector b.
 
-        A_inv = np.array([[d, -b], [-c, a]]) / (a * d - b * c)
-        return A_inv @ bi
+        Args:
+        ----
+            a_matrix (numpy.ndarray): The 2x2 matrix A.
+            b_matrix_i (numpy.ndarray): The 2x1 vector b.
 
-    def solve_pytensor(self, A, bi):
-        a = A[0, 0]
-        b = A[0, 1]
-        c = A[1, 0]
-        d = A[1, 1]
+        Returns:
+        -------
+            numpy.ndarray: The 2x1 solution vector x.
+        """
+        a = a_matrix[0, 0]
+        b = a_matrix[0, 1]
+        c = a_matrix[1, 0]
+        d = a_matrix[1, 1]
 
-        A_inv = at.stacklists([[d, -b], [-c, a]]) / (a * d - b * c)
-        return at.dot(A_inv, bi).squeeze()
+        a_matrix_inv = np.array([[d, -b], [-c, a]]) / (a * d - b * c)
+        return a_matrix_inv @ b_matrix_i
+
+    def solve_pytensor(self, a_matrix, b_matrix_i):
+        """Solves the linear system Ax = b for a 2x2 matrix A and a 2x1 vector b using PyTensor.
+
+        Args:
+        ----
+            a_matrix (pytensor.Tensor): The 2x2 matrix A.
+            b_matrix_i (pytensor.Tensor): The 2x1 vector b.
+
+        Returns:
+        -------
+            pytensor.Tensor: The 2x1 solution vector x.
+        """
+        a = a_matrix[0, 0]
+        b = a_matrix[0, 1]
+        c = a_matrix[1, 0]
+        d = a_matrix[1, 1]
+
+        a_matrix_inv = at.stacklists([[d, -b], [-c, a]]) / (a * d - b * c)
+        return at.dot(a_matrix_inv, b_matrix_i).squeeze()
 
 
 class LinLogLinkMatrix(LinLogBase):
-    def solve(self, A, b):
-        A_linked = A @ self.L
-        z = sp.linalg.solve(A_linked, b)
-        return self.L @ z
+    def solve(self, a_matrix, b_matrix):
+        a_matrix_linked = a_matrix @ self.link_matrix
+        z = sp.linalg.solve(a_matrix_linked, b_matrix)
+        return self.link_matrix @ z
 
-    def solve_pytensor(self, A, b):
-        A_linked = at.dot(A, self.L)
-        z = pytensor.tensor.slinalg.solve(A_linked, b).squeeze()
-        return at.dot(self.L, z)
+    def solve_pytensor(self, a_matrix, b_matrix):
+        a_matrix_linked = at.dot(a_matrix, self.link_matrix)
+        z = pytensor.tensor.slinalg.solve(a_matrix_linked, b_matrix).squeeze()
+        return at.dot(self.link_matrix, z)
 
 
 class LinLogLeastNorm(LinLogBase):
     """Uses dgels to solve for the least-norm solution to the linear equation"""
 
-    def __init__(self, N, Ex, Ey, v_star, driver="gelsy", **kwargs):
+    def __init__(self, stoich, epsilon_x, epsilon_y, v_star, driver="gelsy", **kwargs):
         self.driver = driver
-        LinLogBase.__init__(self, N, Ex, Ey, v_star, **kwargs)
+        LinLogBase.__init__(self, stoich, epsilon_x, epsilon_y, v_star, **kwargs)
 
-    def solve(self, A, b):
-        return lstsq_wrapper(A, b, self.driver)
+    def solve(self, a_matrix, b_matrix):
+        return lstsq_wrapper(a_matrix, b_matrix, self.driver)
 
-    def solve_pytensor(self, A, b):
+    def solve_pytensor(self, a_matrix, b_matrix):
         rsolve_op = LeastSquaresSolve(driver=self.driver, b_ndim=2)
-        return rsolve_op(A, b).squeeze()
+        return rsolve_op(a_matrix, b_matrix).squeeze()
 
 
 class LinLogTikhonov(LinLogBase):
     """Adds regularization to the linear solve, assumes A matrix is positive semi-definite"""
 
-    def __init__(self, N, Ex, Ey, v_star, lambda_=None, **kwargs):
+    def __init__(self, stoich, epsilon_x, epsilon_y, v_star, lambda_=None, **kwargs):
         self.lambda_ = lambda_ if lambda_ else 0
-        assert self.lambda_ >= 0, "lambda must be positive"
+        if self.lambda_ >= 0:
+            raise ValueError("lambda must be positive")
 
-        LinLogBase.__init__(self, N, Ex, Ey, v_star, **kwargs)
+        LinLogBase.__init__(self, stoich, epsilon_x, epsilon_y, v_star, **kwargs)
 
-    def solve(self, A, b):
-        A_hat = A.T @ A + self.lambda_ * np.eye(A.shape[1])
-        b_hat = A.T @ b
+    def solve(self, a_matrix, b_matrix):
+        a_matrix_hat = a_matrix.T @ a_matrix + self.lambda_ * np.eye(a_matrix.shape[1])
+        b_matrix_hat = a_matrix.T @ b_matrix
 
-        cho = sp.linalg.cho_factor(A_hat)
-        return sp.linalg.cho_solve(cho, b_hat)
+        cho = sp.linalg.cho_factor(a_matrix_hat)
+        return sp.linalg.cho_solve(cho, b_matrix_hat)
 
-    def solve_pytensor(self, A, b):
+    def solve_pytensor(self, a_matrix, b_matrix):
         rsolve_op = RegularizedSolve(self.lambda_)
-        return rsolve_op(A, b).squeeze()
+        return rsolve_op(a_matrix, b_matrix).squeeze()
 
 
 class LinLogPinv(LinLogLeastNorm):
     def steady_state_pytensor(
         self,
-        Ex,
-        Ey=None,
-        en=None,
-        yn=None,
+        epsilon_x,
+        epsilon_y=None,
+        e_n=None,
+        y_n=None,
         solution_basis=None,
         method="scan",
-        driver="gelsy",
     ):
         """Calculate a the steady-state transformed metabolite concentrations
         and fluxes using pytensor.
 
-        Ex, Ey, en and yn should be pytensor matrices
+        epsilon_x, epsilon_y, e_n and y_n should be pytensor matrices
 
-        solution_basis is a (n_exp, nr) pytensor matrix of the current solution
+        solution_basis is a (n_exp, n_r) pytensor matrix of the current solution
         basis.
 
         solver: function
             A function to solve Ax = b for a (possibly) singular A. Should
-            accept pytensor matrices A and b, and return a symbolic x.
+            accept pytensor matrices a_matrix and b_matrix, and return a symbolic x.
         """
+        if epsilon_y is None:
+            epsilon_y = at.as_tensor_variable(epsilon_y)
 
-        if Ey is None:
-            Ey = at.as_tensor_variable(Ey)
-
-        if isinstance(en, np.ndarray):
-            en = np.atleast_2d(en)
-            n_exp = en.shape[0]
+        if isinstance(e_n, np.ndarray):
+            e_n = np.atleast_2d(e_n)
+            n_exp = e_n.shape[0]
         else:
-            n_exp = en.tag.test_value.shape[0]
+            n_exp = e_n.tag.test_value.shape[0]
 
-        if isinstance(yn, np.ndarray):
-            yn = np.atleast_2d(yn)
+        if isinstance(y_n, np.ndarray):
+            y_n = np.atleast_2d(y_n)
 
-        en = at.as_tensor_variable(en)
-        yn = at.as_tensor_variable(yn)
+        e_n = at.as_tensor_variable(e_n)
+        y_n = at.as_tensor_variable(y_n)
 
-        e_diag = en.dimshuffle(0, 1, "x") * np.diag(self.v_star)
-        N_rep = self.Nr.reshape((-1, *self.Nr.shape)).repeat(n_exp, axis=0)
-        N_hat = at.batched_dot(N_rep, e_diag)
+        e_diag = e_n.dimshuffle(0, 1, "x") * np.diag(self.v_star)
+        n_rep = self.stoich_reduced.reshape((-1, *self.stoich_reduced.shape)).repeat(n_exp, axis=0)
+        n_hat = at.batched_dot(n_rep, e_diag)
 
-        inner_v = Ey.dot(yn.T).T + np.ones(self.nr, dtype=_floatX)
-        As = at.dot(N_hat, Ex)
+        inner_v = epsilon_y.dot(y_n.T).T + np.ones(self.n_r, dtype=_floatx)
+        a_matrix_s = at.dot(n_hat, epsilon_x)
 
-        bs = at.batched_dot(-N_hat, inner_v.dimshuffle(0, 1, "x"))
+        b_matrix_s = at.batched_dot(-n_hat, inner_v.dimshuffle(0, 1, "x"))
 
         # Here we have to redefine the entire function, since we have to pass
         # an additional argument to solve.
-        def pinv_solution(A, b, basis=None):
-            A_pinv = at.nlinalg.pinv(A)
-            x_ln = at.dot(A_pinv, b).squeeze()
-            x = x_ln + at.dot((at.eye(self.nm) - at.dot(A_pinv, A)), basis)
+        def pinv_solution(a_matrix, b_matrix, basis=None):
+            a_matrix_pinv = at.nlinalg.pinv(a_matrix)
+            x_ln = at.dot(a_matrix_pinv, b_matrix).squeeze()
+            x = x_ln + at.dot((at.eye(self.n_m) - at.dot(a_matrix_pinv, a_matrix)), basis)
             return x
 
         if method == "scan":
-            xn, _ = pytensor.scan(
-                lambda A, b, w: pinv_solution(A, b, basis=w),
-                sequences=[As, bs, solution_basis],
+            x_n, _ = pytensor.scan(
+                lambda a_matrix, b_matrix, w: pinv_solution(a_matrix, b_matrix, basis=w),
+                sequences=[a_matrix_s, b_matrix_s, solution_basis],
                 strict=True,
             )
 
         else:
-            xn_list = [None] * n_exp
+            x_n_list = [None] * n_exp
             for i in range(n_exp):
-                xn_list[i] = pinv_solution(As[i], bs[i], solution_basis[i])
-            xn = at.stack(xn_list)
+                x_n_list[i] = pinv_solution(a_matrix_s[i], b_matrix_s[i], solution_basis[i])
+            x_n = at.stack(x_n_list)
 
-        vn = en * (np.ones(self.nr) + at.dot(Ex, xn.T).T + at.dot(Ey, yn.T).T)
+        v_n = e_n * (np.ones(self.n_r) + at.dot(epsilon_x, x_n.T).T + at.dot(epsilon_y, y_n.T).T)
 
-        return xn, vn
+        return x_n, v_n
