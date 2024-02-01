@@ -20,22 +20,22 @@ class BMCA:
 
     def __init__(
         self,
-        model_path,
-        v_star_path,
-        metabolite_concentrations_path,
-        boundary_fluxes_path,
-        enzyme_measurements_path,
-        reference_state,
+        model_path: str,
+        v_star_path: str,
+        metabolite_concentrations_path: str,
+        boundary_fluxes_path: str,
+        enzyme_measurements_path: str,
+        reference_state: str,
     ):
-        """Initialize the BMCA (Biochemical Model Calibration and Analysis) instance.
+        """Initialize the BMCA (Bayesian Metabolic Control Analysis) instance.
 
         Parameters
         ----------
         model_path : str
-            The path to the YAML file containing the biochemical model.
+            The path to the SBML file containing the model.
 
         v_star_path : str
-            The path to the CSV file containing v_star data.
+            The path to the CSV file containing reference flux data.
 
         metabolite_concentrations_path : str
             The path to the CSV file containing metabolite concentrations data.
@@ -49,10 +49,10 @@ class BMCA:
         reference_state : str
             The reference state identifier for the experiment.
 
-        pt.ributes
+        attributes
         ----------
         model : cobra.Model
-            The biochemical model loaded from the provided YAML file.
+            The biochemical model loaded from the provided SBML file.
 
         v_star : pandas.DataFrame
             DataFrame containing v_star data loaded from the CSV file.
@@ -152,7 +152,7 @@ class BMCA:
                 ),
             )
 
-            self.Ey_t = T.as_tensor_variable(self.Ey)
+            self.Ey_t = pt.as_tensor_variable(self.Ey)
 
             e_measured = pm.Normal(
                 "log_e_measured",
@@ -218,7 +218,7 @@ class BMCA:
 
     def save_results(self, approx, hist):
         """Save ADVI results in cloudpickle."""
-        with gzip.open("data/{self.model.name}.pgz", "wb") as f:
+        with gzip.open(f"data/{self.model.name}.pgz", "wb") as f:
             cloudpickle.dump(
                 {
                     "approx": approx,
