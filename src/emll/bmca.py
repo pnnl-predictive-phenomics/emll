@@ -20,22 +20,22 @@ class BMCA:
 
     def __init__(
         self,
-        model_path: str,
-        v_star_path: str,
-        metabolite_concentrations_path: str,
-        boundary_fluxes_path: str,
-        enzyme_measurements_path: str,
-        reference_state: str,
+        model_path,
+        v_star_path,
+        metabolite_concentrations_path,
+        boundary_fluxes_path,
+        enzyme_measurements_path,
+        reference_state,
     ):
-        """Initialize the BMCA (Bayesian Metabolic Control Analysis) instance.
+        """Initialize the BMCA (Biochemical Model Calibration and Analysis) instance.
 
         Parameters
         ----------
         model_path : str
-            The path to the SBML file containing the model.
+            The path to the YAML file containing the biochemical model.
 
         v_star_path : str
-            The path to the CSV file containing reference flux data.
+            The path to the CSV file containing v_star data.
 
         metabolite_concentrations_path : str
             The path to the CSV file containing metabolite concentrations data.
@@ -49,10 +49,10 @@ class BMCA:
         reference_state : str
             The reference state identifier for the experiment.
 
-        attributes
+        pt.ributes
         ----------
         model : cobra.Model
-            The biochemical model loaded from the provided SBML file.
+            The biochemical model loaded from the provided YAML file.
 
         v_star : pandas.DataFrame
             DataFrame containing v_star data loaded from the CSV file.
@@ -69,6 +69,7 @@ class BMCA:
         ref_state : str
             The reference state identifier used in the experiment.
         """
+        # TODO: create a load model function for different files types (yaml, sbml)
         self.model = cobra.io.load_yaml_model(model_path)
         self.v_star = pd.read_csv(v_star_path, header=None, index_col=0)[1]
         self.x = pd.read_csv(metabolite_concentrations_path, index_col=0)
@@ -83,14 +84,12 @@ class BMCA:
         self.r_compartments = [
             r.compartments if "e" not in r.compartments else "t" for r in self.model.reactions
         ]
-
         self.r_compartments[self.model.reactions.index("SUCCt2r")] = "c"
         self.r_compartments[self.model.reactions.index("ACt2r")] = "c"
-
         for rxn in self.model.exchanges:
             self.r_compartments[self.model.reactions.index(rxn)] = "t"
-
             self.m_compartments = [m.compartment for m in self.model.metabolites]
+        
         # Reindex arrays to have the same column ordering
         to_consider = self.v.columns
         self.v = self.v.loc[:, to_consider]
@@ -152,7 +151,7 @@ class BMCA:
                 ),
             )
 
-            self.Ey_t = pt.as_tensor_variable(self.Ey)
+            self.Ey_t = T.as_tensor_variable(self.Ey)
 
             e_measured = pm.Normal(
                 "log_e_measured",
@@ -218,7 +217,7 @@ class BMCA:
 
     def save_results(self, approx, hist):
         """Save ADVI results in cloudpickle."""
-        with gzip.open(f"data/{self.model.name}.pgz", "wb") as f:
+        with gzip.open("data/{self.model.name}.pgz", "wb") as f:
             cloudpickle.dump(
                 {
                     "approx": approx,
