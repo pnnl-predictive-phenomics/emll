@@ -1,7 +1,47 @@
+import cobra
 import numpy as np
-import scipy as sp
-import pytensor.tensor as at
+import pandas as pd
 import pymc as pm
+import pytensor.tensor as at
+import scipy as sp
+
+
+def get_model_by_type(model_path):
+    """Get a model from a path."""
+    if model_path.endswith('.json'):
+        return cobra.io.load_json_model(model_path)
+    elif model_path.endswith('.xml') or model_path.endswith('.sbml'):
+        return cobra.io.read_sbml_model(model_path)
+    elif model_path.endswith('.mat'):
+        return cobra.io.load_matlab_model(model_path)
+    elif model_path.endswith('.yml') or model_path.endswith('.yaml'):
+        return cobra.io.load_yaml_model(model_path)
+    else:
+        raise ValueError('Model must be in .json, .xml, .mat, or .yml format')
+
+
+def get_dataframe(dataframe_path, header=0, index_col=0):
+    """Get a dataframe from a path."""
+    if dataframe_path is None:
+        return None
+    if dataframe_path.endswith('.csv'):
+        return pd.read_csv(dataframe_path, header, index_col)
+    elif dataframe_path.endswith('.xls') or dataframe_path.endswith('.xlsx'):
+        return pd.read_excel(dataframe_path, header, index_col)
+    else:
+        raise ValueError('Dataframe must be in .csv, .xls, or .xlsx format')
+
+
+def get_fluxes(model):
+    """Get fluxes from a model."""
+    return model.optimize().fluxes
+
+
+def calculate_v_star(model):
+    """Calculate reference strain fluxes."""
+    fluxes = get_fluxes(model)
+    v_star = np.abs(fluxes.values)
+    return v_star
 
 
 def create_elasticity_matrix(model):
@@ -36,10 +76,11 @@ def create_elasticity_matrix(model):
 
 
 def create_Ey_matrix(model):
-    """This function should return a good guess for the Ey matrix. This
-    essentially requires considering the effects of the reactants / products
-    for the unbalanced exchange reactions, and is probably best handled
-    manually for now."""
+    """This function should return a good guess for the Ey matrix. 
+    It operates under the assumption that the model is valid with respect to
+    boundary reactions being identifiable (with an 'EX_' prefix) and metabolites 
+    being identifiable by their respective compartments (e.g. '_e' for external 
+    metabolites, and '_c' for cytoplasmic)."""
 
     boundary_indexes = [model.reactions.index(r) for r in model.medium.keys()]
     boundary_directions = [

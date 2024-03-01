@@ -10,7 +10,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 
-import emll
+from . import util
 
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
@@ -21,13 +21,13 @@ class BMCA:
     def __init__(
         self,
         model_path,
-        v_star_path,
-        metabolite_concentrations_path,
-        boundary_fluxes_path,
-        enzyme_measurements_path,
         reference_state,
+        metabolite_concentrations_path=None,
+        enzyme_measurements_path=None,
+        boundary_fluxes_path=None,
+        v_star_path=None,
     ):
-        """Initialize the BMCA (Biochemical Model Calibration and Analysis) instance.
+        """Initialize the BMCA (Biochemical Model Calibration and Analysis) instance. Includes preprocessing to prepare data for pymc inference.
 
         Parameters
         ----------
@@ -49,34 +49,69 @@ class BMCA:
         reference_state : str
             The reference state identifier for the experiment.
 
-        pt.ributes
+        Attributes
         ----------
         model : cobra.Model
             The biochemical model loaded from the provided YAML file.
 
-        v_star : pandas.DataFrame
-            DataFrame containing v_star data loaded from the CSV file.
-
         x : pandas.DataFrame
             DataFrame containing metabolite concentrations data loaded from the CSV file.
-
-        v : pandas.DataFrame
-            DataFrame containing boundary fluxes data loaded from the CSV file.
 
         e : pandas.DataFrame
             DataFrame containing enzyme measurements data loaded from the CSV file.
 
+        v : pandas.DataFrame
+            DataFrame containing boundary fluxes data loaded from the CSV file.
+
+        v_star : pandas.DataFrame
+            DataFrame containing v_star data loaded from the CSV file.
+
         ref_state : str
             The reference state identifier used in the experiment.
-        """
-        # TODO: create a load model function for different files types (yaml, sbml)
-        self.model = cobra.io.load_yaml_model(model_path)
-        self.v_star = pd.read_csv(v_star_path, header=None, index_col=0)[1]
-        self.x = pd.read_csv(metabolite_concentrations_path, index_col=0)
-        self.v = pd.read_csv(boundary_fluxes_path, index_col=0)
-        self.e = pd.read_csv(enzyme_measurements_path, index_col=0)
 
+        """
+        # TODO: Reduce reading in of data (below) into a single method using a config file
+        # # Gather input data
+        # self.gather_inputs(config_file)
+
+        # Get required user provided model and reference state
+        self.model = util.get_model_by_type(model_path)
         self.ref_state = reference_state
+
+        # Get optional user provided data
+        self.x = util.get_dataframe(metabolite_concentrations_path)
+        self.e = util.get_dataframe(enzyme_measurements_path)
+        self.v = util.get_dataframe(boundary_fluxes_path)
+        self.v_star = util.get_dataframe(v_star_path, header=None, index_col=0)
+        if not(self.v_star is None):
+            self.v_star = self.v_star[1]
+
+
+
+        # TODO: move need for flux calculation outside __init__
+        # # Determine if fluxes need to be calculated
+        # need_fluxes = False
+        # if not(self.v is None):
+        #     flux_df_rows = self.v.index
+        # else:
+        #     need_fluxes = True
+        #
+        #
+        #
+        # Are fluxes provided:
+        #    Yes: which fluxes are provided?
+        #           All fluxes: do not calculate fluxes
+        #           Some fluxes: calculate fluxes for missing fluxes
+        #           Use provided reference state (required)
+        #    No: calculate fluxes (use default reference state)
+        #
+        # If need to calculate fluxes
+        #       Are metabolomics data provided?
+        #           Yes: calculate fluxes using metaboliomics data as constrainsts
+        #       Are transcriptomics data provided?
+        #           Yes: 
+
+
 
     def preprocess_data(self):
         """Read in cobra model as components."""
@@ -89,7 +124,7 @@ class BMCA:
         for rxn in self.model.exchanges:
             self.r_compartments[self.model.reactions.index(rxn)] = "t"
             self.m_compartments = [m.compartment for m in self.model.metabolites]
-        
+
         # Reindex arrays to have the same column ordering
         to_consider = self.v.columns
         self.v = self.v.loc[:, to_consider]
@@ -199,6 +234,19 @@ class BMCA:
             )
 
         self.pymc_model = pymc_model
+
+    
+
+    def sample_prior_predictive(self, num_samples=500):
+        """Sample from prior predictive distribution."""
+        with self.pymc_model:
+            prior_predictive = pm.sample_prior_predictive(num_samples)
+
+        # Generate dataframe from prior predictive results
+        # prior_predictive_df = pd.DataFrame(prior_predictive)
+
+        return prior_predictive_df
+
 
     def run_emll(self):
         """Build linlog model and run inference."""
