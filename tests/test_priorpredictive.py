@@ -31,12 +31,12 @@ def test_priorpredictive(wu2004_bmca_obj):
 
     # Compare prior predictive distribution to wu2004 prior predictive results
     wu_prior_df = pd.read_csv("tests/test_data/expected_wu2004_FCCpriors.csv", index_col=0)
+
+    # TODO: correct inputs for Wilcoxon test
     met_names = wu_prior_df.index
     for m in met_names:
         this_wu_prior = wu_prior_df.loc[m]
         test_result = sp.stats.wilcoxon(x=fcc_prior, y=this_wu_prior)
-    
-
 
 
     # assert bmca_obj.prior_predictive.equals(wu_prior_pred)
