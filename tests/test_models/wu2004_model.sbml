@@ -15,11 +15,11 @@
       <compartment id="c" name="the cytosol" constant="true"/>
     </listOfCompartments>
     <listOfSpecies>
-      <species id="M_bpg_e" compartment="e" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="M_2pg_e" compartment="e" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
       <species id="M_2pg_c" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="M_pep_c" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
       <species id="M_pep_e" compartment="e" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="M_adp_e" compartment="e" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="M_pep_c" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="M_adp_c" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
       <parameter sboTerm="SBO:0000626" id="cobra_default_lb" value="-1000" constant="true"/>
@@ -29,7 +29,20 @@
       <parameter sboTerm="SBO:0000626" id="plus_inf" value="INF" constant="true"/>
     </listOfParameters>
     <listOfReactions>
+      <reaction id="R_EX_2pg_e" reversible="true" fast="false" fbc:lowerFluxBound="cobra_default_lb" fbc:upperFluxBound="cobra_default_ub">
+        <listOfProducts>
+          <speciesReference species="M_2pg_e" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+      </reaction>
+      <reaction id="R_SK_adp_c" reversible="true" fast="false" fbc:lowerFluxBound="cobra_default_lb" fbc:upperFluxBound="cobra_default_ub">
+        <listOfProducts>
+          <speciesReference species="M_adp_c" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+      </reaction>
       <reaction id="R_PGM" reversible="true" fast="false" fbc:lowerFluxBound="cobra_default_lb" fbc:upperFluxBound="cobra_default_ub">
+        <listOfReactants>
+          <speciesReference species="M_2pg_e" stoichiometry="1" constant="true"/>
+        </listOfReactants>
         <listOfProducts>
           <speciesReference species="M_2pg_c" stoichiometry="1" constant="true"/>
         </listOfProducts>
@@ -45,7 +58,7 @@
       <reaction id="R_PK" reversible="true" fast="false" fbc:lowerFluxBound="cobra_default_lb" fbc:upperFluxBound="cobra_default_ub">
         <listOfReactants>
           <speciesReference species="M_pep_c" stoichiometry="1" constant="true"/>
-          <speciesReference species="M_adp_e" stoichiometry="1" constant="true"/>
+          <speciesReference species="M_adp_c" stoichiometry="1" constant="true"/>
         </listOfReactants>
         <listOfProducts>
           <speciesReference species="M_pep_e" stoichiometry="1" constant="true"/>
@@ -58,7 +71,11 @@
       </reaction>
     </listOfReactions>
     <fbc:listOfObjectives fbc:activeObjective="obj">
-      <fbc:objective fbc:id="obj" fbc:type="maximize"/>
+      <fbc:objective fbc:id="obj" fbc:type="maximize">
+        <fbc:listOfFluxObjectives>
+          <fbc:fluxObjective fbc:reaction="R_EX_pep_e" fbc:coefficient="1"/>
+        </fbc:listOfFluxObjectives>
+      </fbc:objective>
     </fbc:listOfObjectives>
   </model>
 </sbml>
