@@ -9,7 +9,7 @@ from emll import bmca
 @pytest.fixture(scope="module")
 def wu2004_bmca_obj():
     wu2004_paths = {
-        "model_path": "tests/test_models/wu2004_model.sbml",
+        "model_path": "tests/test_models/wu2004_model.json",
         "reference_state": None,
     }
     bmca_obj = emll.bmca.BMCA(
@@ -19,7 +19,10 @@ def wu2004_bmca_obj():
     return bmca_obj
 
 
-# def test_elasticity_matrix(wu2004_bmca_obj):
+# def test_build_unconditional_pymc_model(wu2004_bmca_obj):
+
+#def test_sample_prior_predictive(pymc_model)
+
 
 
 def test_priorpredictive(wu2004_bmca_obj):

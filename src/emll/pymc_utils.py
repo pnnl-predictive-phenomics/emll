@@ -52,7 +52,7 @@ def sample_prior_fccs(cobra_model):
     # Get stoichiometric matrix
     N = create_stoichiometric_matrix(cobra_model, dtype='int')
 
-    # Creaet linlog model
+    # Create linlog model
     ll = linlog_model.LinLogLeastNorm(N, Ex, Ey, v_star, driver='gelsy')
 
     fcc_prior = np.array([ll.flux_control_coefficient(Ex=ex) for ex in trace_prior.prior['Ex'][0].to_numpy()])
