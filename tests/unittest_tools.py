@@ -4,16 +4,14 @@ from copy import copy, deepcopy
 from functools import wraps
 
 import numpy as np
-import pytest
-
 import pytensor
+import pytest
 from pytensor.compile.debugmode import str_diagnostic
 from pytensor.configdefaults import config
 from pytensor.gradient import verify_grad as orig_verify_grad
 from pytensor.tensor.basic import as_tensor_variable
 from pytensor.tensor.math import _allclose
 from pytensor.tensor.math import add as at_add
-
 
 _logger = logging.getLogger("tests.unittest_tools")
 
@@ -42,10 +40,7 @@ def fetch_seed(pseed=None):
             seed = None
     except ValueError:
         print(
-            (
-                "Error: config.unittests__rseed contains "
-                "invalid seed, using None instead"
-            ),
+            ("Error: config.unittests__rseed contains " "invalid seed, using None instead"),
             file=sys.stderr,
         )
         seed = None
@@ -224,11 +219,7 @@ class InferShapeTester:
                 # remove broadcasted dims as it is sure they can't be
                 # changed to prevent the same dim problem.
                 if hasattr(var.type, "broadcastable"):
-                    shp = [
-                        inp.shape[i]
-                        for i in range(inp.ndim)
-                        if not var.type.broadcastable[i]
-                    ]
+                    shp = [inp.shape[i] for i in range(inp.ndim) if not var.type.broadcastable[i]]
                 else:
                     shp = inp.shape
                 if len(set(shp)) != len(shp):

@@ -1,7 +1,7 @@
 import numpy as np
-import scipy as sp
-import pytensor.tensor as at
 import pymc as pm
+import pytensor.tensor as at
+import scipy as sp
 
 
 def create_elasticity_matrix(model):

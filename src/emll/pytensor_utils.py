@@ -1,17 +1,14 @@
+"""Utility scripts for PyTensor."""
 import numpy as np
 import scipy as sp
-
+from pytensor import tensor
+from pytensor.tensor.slinalg import Solve
 from scipy.linalg import LinAlgError
 from scipy.linalg.lapack import get_lapack_funcs
 
-from pytensor import tensor
-from pytensor.tensor.slinalg import Solve
-
 
 class SymPosSolve(Solve):
-    """
-    Class to allow `solve` to accept a symmetric matrix
-    """
+    """Class to allow `solve` to accept a symmetric matrix."""
 
     def perform(self, node, inputs, output_storage):
         A, b = inputs
@@ -23,10 +20,9 @@ sympos_solve = SymPosSolve(assume_a="sym", b_ndim=2)
 
 
 class RegularizedSolve(Solve):
-    """
-    Solve a system of linear equations, Ax = b, while minimizing the norm of x.
-    Applies tikhovov regularization.
+    """Applies tikhovov regularization.
 
+    Solve a system of linear equations, Ax = b, while minimizing the norm of x.
     """
 
     __props__ = ("lambda_", *Solve.__props__)
@@ -46,11 +42,7 @@ class RegularizedSolve(Solve):
         output_storage[0][0] = rval
 
     def L_op(self, inputs, outputs, output_gradients):
-        """
-        Reverse-mode gradient updates for matrix solve operation.
-
-        """
-
+        """Reverse-mode gradient updates for matrix solve operation."""
         A, b = inputs
         c = outputs[0]
         c_bar = output_gradients[0]
@@ -68,10 +60,7 @@ class RegularizedSolve(Solve):
 
 
 class LeastSquaresSolve(Solve):
-    """
-    Solve a system of linear equations, Ax = b, while minimizing the norm of x.
-
-    """
+    """Solve a system of linear equations, Ax = b, while minimizing the norm of x."""
 
     __props__ = ("driver", *Solve.__props__)  # contains b_ndim
 
@@ -85,11 +74,7 @@ class LeastSquaresSolve(Solve):
         output_storage[0][0] = lstsq_wrapper(A, b, driver=self.driver)
 
     def L_op(self, inputs, outputs, output_gradients):
-        """
-        Reverse-mode gradient updates for matrix solve operation.
-
-        """
-
+        """Reverse-mode gradient updates for matrix solve operation."""
         A, b = inputs
         c = outputs[0]
         c_bar = output_gradients[0]
@@ -117,8 +102,7 @@ def sympos_solve_wrapper(A, b):
 
 
 def lstsq_wrapper(A, b, driver="gelsy"):
-    """Wrap sp.linalg.lstsq to also support the faster _gels solver"""
-
+    """Wrap sp.linalg.lstsq to also support the faster _gels solver."""
     # if driver == 'gels':
     #
     #     m, n = A.shape

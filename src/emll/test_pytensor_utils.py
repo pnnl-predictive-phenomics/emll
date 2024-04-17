@@ -5,7 +5,7 @@ import scipy as sp
 
 from tests import unittest_tools as utt  # Problem Importing utt? this is correct syntax
 
-from .pytensor_utils import RegularizedSolve, LeastSquaresSolve
+from .pytensor_utils import LeastSquaresSolve, RegularizedSolve
 
 
 def test_regularized_solve():

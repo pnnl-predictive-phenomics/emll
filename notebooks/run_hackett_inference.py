@@ -8,11 +8,13 @@
 # I guess that's expected
 
 import os
-import pandas as pd
+
+import cobra
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as T
-import cobra
+
 import emll
 from emll.util import initialize_elasticity
 
@@ -149,6 +151,7 @@ if __name__ == "__main__":
         # ppc = pm.sample_ppc(trace)
 
     import gzip
+
     import cloudpickle
 
     with gzip.open("data/hackett_advi.pgz", "wb") as f:
