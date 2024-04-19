@@ -21,71 +21,71 @@ os.environ["MKL_THREADING_LAYER"] = "GNU"
 # Load model and data
 model = cobra.io.load_yaml_model("data/jol2012.yaml")
 
-r_compartments = [r.compartments if "e" not in r.compartments else "t" for r in model.reactions]
+rxn_compartments = [r.compartments if "e" not in r.compartments else "t" for r in model.reactions]
 
-r_compartments[model.reactions.index("SUCCt2r")] = "c"
-r_compartments[model.reactions.index("ACt2r")] = "c"
+rxn_compartments[model.reactions.index("SUCCt2r")] = "c"
+rxn_compartments[model.reactions.index("ACt2r")] = "c"
 
 for rxn in model.exchanges:
-    r_compartments[model.reactions.index(rxn)] = "t"
+    rxn_compartments[model.reactions.index(rxn)] = "t"
 
-m_compartments = [m.compartment for m in model.metabolites]
+met_compartments = [m.compartment for m in model.metabolites]
 
-v_star = pd.read_csv("data/v_star.csv", header=None, index_col=0)[1]
+flux_ref = pd.read_csv("data/v_star.csv", header=None, index_col=0)[1]
 
-x = pd.read_csv("data/metabolite_concentrations.csv", index_col=0)
-v = pd.read_csv("data/boundary_fluxes.csv", index_col=0)
-e = pd.read_csv("data/enzyme_measurements.csv", index_col=0)
+metabolites = pd.read_csv("data/metabolite_concentrations.csv", index_col=0)
+fluxes = pd.read_csv("data/boundary_fluxes.csv", index_col=0)
+enzymes = pd.read_csv("data/enzyme_measurements.csv", index_col=0)
 
 # Reindex arrays to have the same column ordering
-to_consider = v.columns
-v = v.loc[:, to_consider]
-x = x.loc[:, to_consider]
-e = e.loc[:, to_consider]
+to_consider = fluxes.columns
+fluxes = fluxes.loc[:, to_consider]
+metabolites = metabolites.loc[:, to_consider]
+enzymes = enzymes.loc[:, to_consider]
 
 n_exp = len(to_consider) - 1
 ref_state = "P0.11"
 
-xn = (x.subtract(x["P0.11"], 0) * np.log(2)).T
-en = (2 ** e.subtract(e["P0.11"], 0)).T
+metabolites_norm = (metabolites.subtract(metabolites["P0.11"], 0) * np.log(2)).T
+enzymes_norm = (2 ** enzymes.subtract(enzymes["P0.11"], 0)).T
 
-# To calculate vn, we have to merge in the v_star series and do some
+# To calculate vn, we have to merge in the flux_ref series and do some
 # calculations.
-v_star_df = pd.DataFrame(v_star).reset_index().rename(columns={0: "id", 1: "flux"})
-v_merge = v.merge(v_star_df, left_index=True, right_on="id").set_index("id")
-vn = v_merge.divide(v_merge.flux, axis=0).drop("flux", axis=1).T
+flux_ref_df = pd.DataFrame(flux_ref).reset_index().rename(columns={0: "id", 1: "flux"})
+fluxes_merge = fluxes.merge(flux_ref_df, left_index=True, right_on="id").set_index("id")
+fluxes_norm = fluxes_merge.divide(fluxes_merge.flux, axis=0).drop("flux", axis=1).T
 
 # Drop reference state
-vn = vn.drop(ref_state)
-xn = xn.drop(ref_state)
-en = en.drop(ref_state)
+fluxes_norm = fluxes_norm.drop(ref_state)
+metabolites_norm = metabolites_norm.drop(ref_state)
+enzymes_norm = enzymes_norm.drop(ref_state)
 
 # Get indexes for measured values
-x_inds = np.array([model.metabolites.index(met) for met in xn.columns])
-e_inds = np.array([model.reactions.index(rxn) for rxn in en.columns])
-v_inds = np.array([model.reactions.index(rxn) for rxn in vn.columns])
+metabolites_inds = np.array([model.metabolites.index(met) for met in metabolites_norm.columns])
+enzymes_inds = np.array([model.reactions.index(rxn) for rxn in enzymes_norm.columns])
+fluxes_inds = np.array([model.reactions.index(rxn) for rxn in fluxes_norm.columns])
 
-e_laplace_inds = []
-e_zero_inds = []
+enzymes_laplace_inds = []
+enzymes_zero_inds = []
 
 for i, rxn in enumerate(model.reactions):
-    if rxn.id not in en.columns:
+    if rxn.id not in enzymes_norm.columns:
         if ("e" not in rxn.compartments) and (len(rxn.compartments) == 1):
-            e_laplace_inds += [i]
+            enzymes_laplace_inds += [i]
         else:
-            e_zero_inds += [i]
+            enzymes_zero_inds += [i]
 
-e_laplace_inds = np.array(e_laplace_inds)
-e_zero_inds = np.array(e_zero_inds)
-e_indexer = np.hstack([e_inds, e_laplace_inds, e_zero_inds]).argsort()
+enzymes_laplace_inds = np.array(enzymes_laplace_inds)
+enzymes_zero_inds = np.array(enzymes_zero_inds)
+enzymes_indexer = np.hstack([enzymes_inds, enzymes_laplace_inds, enzymes_zero_inds]).argsort()
 
-N = cobra.util.create_stoichiometric_matrix(model)
-Ex = emll.util.create_elasticity_matrix(model)
-Ey = emll.util.create_Ey_matrix(model)
+stoichiometric_matrix = cobra.util.create_stoichiometric_matrix(model)
+elasticity_matrix = emll.util.create_elasticity_matrix(model)
+external_elasticity_matrix = emll.util.create_Ey_matrix(model) 
 
-Ex *= 0.1 + 0.8 * np.random.rand(*Ex.shape)
+elasticity_matrix *= 0.1 + 0.8 * np.random.rand(*elasticity_matrix.shape)
 
-ll = emll.LinLogLeastNorm(N, Ex, Ey, v_star.values, driver="gelsy")
+lin_log_model = emll.LinLogLeastNorm(stoichiometric_matrix, elasticity_matrix, external_elasticity_matrix, flux_ref.values, driver="gelsy")
 
 np.random.seed(1)
 
@@ -94,45 +94,45 @@ np.random.seed(1)
 
 with pm.Model() as pymc_model:
     # Priors on elasticity values
-    Ex_t = pm.Deterministic(
+    elasticity_matrix_tensor = pm.Deterministic(
         "Ex",
         initialize_elasticity(
-            ll.N,
+            lin_log_model.N,
             b=0.01,
             sigma=1,
             alpha=None,
-            m_compartments=m_compartments,
-            r_compartments=r_compartments,
+            m_compartments=met_compartments,
+            r_compartments=rxn_compartments,
         ),
     )
 
-    Ey_t = T.as_tensor_variable(Ey)
+    external_elasticity_matrix_tensor = T.as_tensor_variable(external_elasticity_matrix) 
 
-    e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
-    e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
-    log_en_t = T.concatenate(
-        [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
-    )[:, e_indexer]
+    enzymes_measured = pm.Normal("log_e_measured", mu=np.log(enzymes_norm), sigma=0.2, shape=(n_exp, len(enzymes_inds)))
+    enzymes_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(enzymes_laplace_inds)))
+    log_enzymes_norm_tensor = T.concatenate(
+        [enzymes_measured, enzymes_unmeasured, T.zeros((n_exp, len(enzymes_zero_inds)))], axis=1
+    )[:, enzymes_indexer]
 
-    pm.Deterministic("log_en_t", log_en_t)
+    pm.Deterministic("log_en_t", log_enzymes_norm_tensor)
 
     # Priors on external concentrations
-    yn_t = pm.Normal(
-        "yn_t", mu=0, sigma=10, shape=(n_exp, ll.ny), initval=0.1 * np.random.randn(n_exp, ll.ny)
+    external_concentrations_norm_tensor = pm.Normal(
+        "yn_t", mu=0, sigma=10, shape=(n_exp, lin_log_model.ny), initval=0.1 * np.random.randn(n_exp, lin_log_model.ny)
     )
 
-    chi_ss, vn_ss = ll.steady_state_pytensor(Ex_t, Ey_t, T.exp(log_en_t), yn_t)
-    pm.Deterministic("chi_ss", chi_ss)
-    pm.Deterministic("vn_ss", vn_ss)
+    transformed_metabolites_ss, fluxes_norm_ss = lin_log_model.steady_state_pytensor(elasticity_matrix_tensor, external_elasticity_matrix_tensor, T.exp(log_enzymes_norm_tensor), external_concentrations_norm_tensor)
+    pm.Deterministic("chi_ss", transformed_metabolites_ss)
+    pm.Deterministic("vn_ss", fluxes_norm_ss)
 
-    log_vn_ss = T.log(T.clip(vn_ss[:, v_inds], 1e-8, 1e8))
-    log_vn_ss = T.clip(log_vn_ss, -1.5, 1.5)
+    log_fluxes_norm_ss = T.log(T.clip(fluxes_norm_ss[:, fluxes_inds], 1e-8, 1e8))
+    log_fluxes_norm_ss = T.clip(log_fluxes_norm_ss, -1.5, 1.5)
 
-    chi_clip = T.clip(chi_ss[:, x_inds], -1.5, 1.5)
+    transformed_metabolites_ss_clip = T.clip(transformed_metabolites_ss[:, metabolites_inds], -1.5, 1.5)
 
-    chi_obs = pm.Normal("chi_obs", mu=chi_clip, sigma=0.2, observed=xn.clip(lower=-1.5, upper=1.5))
-    log_vn_obs = pm.Normal(
-        "vn_obs", mu=log_vn_ss, sigma=0.1, observed=np.log(vn).clip(lower=-1.5, upper=1.5)
+    transformed_metabolites_ss_obs = pm.Normal("chi_obs", mu=transformed_metabolites_ss_clip, sigma=0.2, observed=metabolites_norm.clip(lower=-1.5, upper=1.5))
+    log_fluxes_norm_obs = pm.Normal(
+        "vn_obs", mu=log_fluxes_norm_ss, sigma=0.1, observed=np.log(fluxes_norm).clip(lower=-1.5, upper=1.5)
     )
 
 
