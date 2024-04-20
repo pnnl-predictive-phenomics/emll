@@ -24,7 +24,7 @@ def compare_tensors(expected_tensor:pytensor.tensor, actual_tensor:pytensor.tens
     AssertionError
         If any of the checks fail.
     """
-
+    # TODO: review this code!
     def get_random_variables(tensor):
         """Traverse the computational graph of a tensor to extract RandomVariable nodes."""
         random_vars = []
@@ -68,6 +68,8 @@ def compare_tensors(expected_tensor:pytensor.tensor, actual_tensor:pytensor.tens
             for param1, param2 in zip(rvar1.inputs[3:], rvar2.inputs[3:]):  # Skip the first three inputs (rng, size, dtype)
                 if not param1.equals(param2):
                     return False, f"Different distribution parameters: {param1} vs {param2}"
+                
+            # TODO: Evaluate RVs and get log-p
 
         return True, "Random variables and their parameters match"
 
@@ -155,6 +157,8 @@ def test_create_pytensor_from_data(expected_results_from_hackett):
     hacket_model_parameters = expected_results_from_hackett[1]
     actual_tensor = data_model_integration.create_pytensor_from_data(hacket_model_parameters)
     assert compare_tensors(expected_tensor,actual_tensor) == True
+
+
 
 if __name__ == "__main__":
 

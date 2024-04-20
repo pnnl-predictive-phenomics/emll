@@ -6,11 +6,31 @@ import numpy as np
 import pytensor.tensor 
 
 
-def get_data_params_from_data(data):
-    data_params = {}
-    return data_params
+# test create_pytensor_from_data_naive == create_pytensor_from_data_fancy
+# test create_pytensor_from_data_naive == initialize_elasticity
 
-def create_pytensor_from_data(data_params:dict):
+
+def create_pytensor_from_data_naive(data):
+
+    # parameters from distributions (ij+distribution_type, parameters)
+    # dataframe = N model variables x M measured conditions
+    # NaN (unmeasured) | Inf (zero/excluded) | float (measured)
+    # create empty lists for unmeasured, measured, and excluded indices
+    # for each row i
+    #   for each column j
+    #       if df[ij] == Nan
+    #           add ij (index) to unmeasured list
+    #           create distribution (what is the shape of zero dimensional object)
+    #       if df[ij] == Inf
+    #           add ij (index) to excluded list
+    #           create distribution (what is the shape of zero dimensional object)
+    #       if df[ij] == float
+    #           add ij (index) to measured list
+    #           create distribution (what is the shape of zero dimensional object)
+    # return the new tensor
+    raise NotImplementedError
+
+def create_pytensor_from_data_fancy(data_params:dict):
     """Creates a pytensor based on data - including missing model variables and experimental conditions."""
     # Create a random stream with a fixed seed
     seed = 1
@@ -31,12 +51,12 @@ def create_pytensor_from_data(data_params:dict):
                                  rng=rng
                                  )
         
-        data_excluded_tensor = pytensor.tensor.zeros(data_params['excluded_shape'])
+        data_zero_tensor = pytensor.tensor.zeros(data_params['excluded_shape'])
     
         data_tensor = pytensor.tensor.concatenate(
             [data_measured_dist, 
             data_unmeasured_dist, 
-            data_excluded_tensor,
+            data_zero_tensor,
             ], axis=1
             )[:, data_params['tensor_indexer']]
 

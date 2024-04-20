@@ -33,6 +33,8 @@ met_compartments = [m.compartment for m in model.metabolites]
 
 flux_ref = pd.read_csv("data/v_star.csv", header=None, index_col=0)[1]
 
+# type_norm|unorm_obs|unobs|ss_df|tensor
+
 metabolites = pd.read_csv("data/metabolite_concentrations.csv", index_col=0)
 fluxes = pd.read_csv("data/boundary_fluxes.csv", index_col=0)
 enzymes = pd.read_csv("data/enzyme_measurements.csv", index_col=0)
@@ -80,6 +82,7 @@ enzymes_zero_inds = np.array(enzymes_zero_inds)
 enzymes_indexer = np.hstack([enzymes_inds, enzymes_laplace_inds, enzymes_zero_inds]).argsort()
 
 stoichiometric_matrix = cobra.util.create_stoichiometric_matrix(model)
+# internal and external elasticity matrix
 elasticity_matrix = emll.util.create_elasticity_matrix(model)
 external_elasticity_matrix = emll.util.create_Ey_matrix(model) 
 
@@ -93,7 +96,7 @@ np.random.seed(1)
 # Define the probability model
 
 with pm.Model() as pymc_model:
-    # Priors on elasticity values
+    # Priors on elasticity values (rename)
     elasticity_matrix_tensor = pm.Deterministic(
         "Ex",
         initialize_elasticity(
@@ -108,6 +111,7 @@ with pm.Model() as pymc_model:
 
     external_elasticity_matrix_tensor = T.as_tensor_variable(external_elasticity_matrix) 
 
+    # use obs vs unobs
     enzymes_measured = pm.Normal("log_e_measured", mu=np.log(enzymes_norm), sigma=0.2, shape=(n_exp, len(enzymes_inds)))
     enzymes_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(enzymes_laplace_inds)))
     log_enzymes_norm_tensor = T.concatenate(
@@ -117,18 +121,19 @@ with pm.Model() as pymc_model:
     pm.Deterministic("log_en_t", log_enzymes_norm_tensor)
 
     # Priors on external concentrations
-    external_concentrations_norm_tensor = pm.Normal(
+    external_metabolites_measured = pm.Normal(
         "yn_t", mu=0, sigma=10, shape=(n_exp, lin_log_model.ny), initval=0.1 * np.random.randn(n_exp, lin_log_model.ny)
     )
 
-    transformed_metabolites_ss, fluxes_norm_ss = lin_log_model.steady_state_pytensor(elasticity_matrix_tensor, external_elasticity_matrix_tensor, T.exp(log_enzymes_norm_tensor), external_concentrations_norm_tensor)
-    pm.Deterministic("chi_ss", transformed_metabolites_ss)
+    # internal and norm
+    metabolites_ss, fluxes_norm_ss = lin_log_model.steady_state_pytensor(elasticity_matrix_tensor, external_elasticity_matrix_tensor, T.exp(log_enzymes_norm_tensor), external_metabolites_measured)
+    pm.Deterministic("chi_ss", metabolites_ss)
     pm.Deterministic("vn_ss", fluxes_norm_ss)
 
     log_fluxes_norm_ss = T.log(T.clip(fluxes_norm_ss[:, fluxes_inds], 1e-8, 1e8))
     log_fluxes_norm_ss = T.clip(log_fluxes_norm_ss, -1.5, 1.5)
 
-    transformed_metabolites_ss_clip = T.clip(transformed_metabolites_ss[:, metabolites_inds], -1.5, 1.5)
+    transformed_metabolites_ss_clip = T.clip(metabolites_ss[:, metabolites_inds], -1.5, 1.5)
 
     transformed_metabolites_ss_obs = pm.Normal("chi_obs", mu=transformed_metabolites_ss_clip, sigma=0.2, observed=metabolites_norm.clip(lower=-1.5, upper=1.5))
     log_fluxes_norm_obs = pm.Normal(
