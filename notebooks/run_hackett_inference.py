@@ -96,7 +96,7 @@ np.random.seed(1)
 # Define the probability model
 
 with pm.Model() as pymc_model:
-    # Priors on elasticity values (rename)
+    # Priors on elasticity values (rename) - internal
     elasticity_matrix_tensor = pm.Deterministic(
         "Ex",
         initialize_elasticity(
@@ -109,6 +109,7 @@ with pm.Model() as pymc_model:
         ),
     )
 
+    # remove 'matrix' from name
     external_elasticity_matrix_tensor = T.as_tensor_variable(external_elasticity_matrix) 
 
     # use obs vs unobs
