@@ -58,3 +58,31 @@ def create_noisy_observations_of_computed_values(name:str, computed_tensor:T.ten
                                              sigma=stdev_value,
                                              observed=observed_data)
     return rv
+
+
+def create_pytensor_from_data(name:str, data:pd.DataFrame)->T.tensor:  # noqa: D417
+    """"""
+
+    # Check input types
+    if not isinstance(name, str):
+        raise TypeError(f"Expected name to be of type {str.__name__}, but got {type(str).__name__} instead.")
+    
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError(f"Expected data to be of type {pd.DataFrame.__name__}, but got {type(data).__name__} instead.")
+
+    # Function to check if a value is finite, np.nan, or np.inf
+    def check_value(x):
+        if isinstance(x, (int, float)):
+            return np.isfinite(x) or np.isnan(x) or np.isinf(x)
+        else:
+            return False
+
+    # Check that all values in the DataFrame are finite, np.nan, or np.inf
+    if not data.map(check_value).all().all():
+        raise ValueError("DataFrame contains values that are not finite, np.nan, or np.inf.")
+    
+    try:
+        model_context = pm.Model.get_context()
+    except TypeError as e:
+        raise TypeError("Function must be run within a PyMC model context.") from e
+

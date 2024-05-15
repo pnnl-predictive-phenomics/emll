@@ -1,4 +1,6 @@
+import pytensor.tensor
 from emll.data_model_integration import create_noisy_observations_of_computed_values
+from emll.data_model_integration import create_pytensor_from_data
 import pytest 
 import pytensor
 import numpy as np
@@ -90,3 +92,62 @@ def test_create_noisy_observations_of_computed_values():
             assert actual_stdev == expected_stdev
 
 
+def test_create_pytensor_from_data():
+
+    # setup input name and data
+    input_string = 'test'
+    input_data_dict_mixed = {
+        'x': [1.0, np.inf, np.nan],
+        'y': [np.inf, np.nan, 2]
+    }
+    input_data_dict_all_observed = {
+        'x': [1.0, 10.0, 100.0],
+        'y': [-5, -25, -125]
+    }
+    input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
+    input_dataframe_all_observed = pd.DataFrame(input_data_dict_all_observed)
+
+    # setup "wrong" inputs for error handling checks
+    input_string_wrong_type= 42
+    input_data_dict_mixed_wrong_type = {
+        'x': [1.0, np.inf, None],
+        'y': ["test", np.nan, 2]
+    }
+    input_dataframe_mixed_wrong_type = pd.DataFrame(input_data_dict_mixed_wrong_type)
+
+    # check if type error is raised if name is not a string
+    with pytest.raises(TypeError):
+        create_pytensor_from_data(input_string_wrong_type,input_dataframe_mixed)
+    
+    # check if type error is raised if data is not a dataframe
+    with pytest.raises(TypeError):
+        create_pytensor_from_data(input_string,input_data_dict_mixed)
+
+    # check that value error is raised if data values are not finite, np.inf, or np.nan
+    with pytest.raises(ValueError):
+        create_pytensor_from_data(input_string,input_dataframe_mixed_wrong_type)
+
+    # check that type error is raised if not run in model context
+    with pytest.raises(TypeError):
+        create_pytensor_from_data(input_string,input_dataframe_mixed)
+
+
+    test_model = pm.Model()
+    with test_model:
+        
+        # check if actual returned value matches expected value 
+        # case 1: all data is observed across all conditions
+        # expect a normal distribution to be returned
+            rv_tensor = create_pytensor_from_data(input_string,input_dataframe_all_observed)
+        
+
+    #     # check if returned value is a pytensor
+    #     assert(type(create_pytensor_from_data(input_string,input_dataframe_mixed))==pytensor.tensor.TensorType)
+    
+
+    
+    # check rows and columns
+
+    # check if value error is raised if 
+    #input_data_values = 1
+    #raise NotImplementedError
