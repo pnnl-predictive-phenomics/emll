@@ -252,7 +252,7 @@ def test_create_pytensor_from_data():
     test_model = pm.Model()
     with test_model:
         data_tensor = create_pytensor_from_data(input_string,input_dataframe_no_observed,input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
-        
+        print(pytensor.dprint(data_tensor))
         # traverse the computational graph to get only the random variables
         ancestor_nodes = ancestors([data_tensor])
         apply_nodes = [node for node in ancestor_nodes if isinstance(node, TensorVariable) and node.owner is not None]
@@ -284,12 +284,23 @@ def test_create_pytensor_from_data():
 
     # Test case 3: all model variables are excluded for all conditions
     # All data should be np.nan with Normal and Laplace distributions not used
-    # input_data_dict_all_excluded = {
-    #     'x': [np.nan, np.nan, np.nan],
-    #     'y': [np.nan, np.nan, np.nan]
-    # }
-    # input_dataframe_all_excluded = pd.DataFrame(input_data_dict_all_excluded)
-    
+    input_data_dict_all_excluded = {
+        'x': [np.nan, np.nan, np.nan],
+        'y': [np.nan, np.nan, np.nan]
+    }
+    input_dataframe_all_excluded = pd.DataFrame(input_data_dict_all_excluded)
+
+    test_model = pm.Model()
+    with test_model:
+        data_tensor = create_pytensor_from_data(input_string, input_dataframe_all_excluded, input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
+
+        # check the actual number of zeros is the same as expected
+        tensor_values = data_tensor.eval()
+        actual_num_zeros = np.sum(tensor_values == 0)
+        expected_num_zeros = np.prod(input_dataframe_all_excluded.shape)
+        assert actual_num_zeros == expected_num_zeros, f"Expected {expected_num_zeros} zeroes, found {actual_num_zeros}"
+
+        
 
         # # test case 4: variables are a mixture of observed, unobserved, and excluded for all conditions
     # input_data_dict_mixed = {
