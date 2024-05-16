@@ -1,18 +1,15 @@
-
-from emll.data_model_integration import create_noisy_observations_of_computed_values
-from emll.data_model_integration import create_pytensor_from_data_naive
 import emll
-
-import pytest 
-import pytensor
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor
+import pytest 
 
+from emll.data_model_integration import create_noisy_observations_of_computed_values
+from emll.data_model_integration import create_pytensor_from_data_naive
 from pytensor.graph.basic import ancestors
 from pytensor.tensor.variable import TensorVariable
 from pytensor.tensor.random.op import RandomVariable 
-
 
 
 def test_create_noisy_observations_of_computed_values():
@@ -391,7 +388,7 @@ def test_create_pytensor_from_data():
         assert num_laplace == expected_num_laplace, f"Expected {expected_num_laplace} Laplace RVs, found {num_laplace}"
         assert actual_num_zeros == expected_num_zeros, f"Expected {expected_num_zeros} zeros, found {actual_num_zeros}"
 
-    # check if output can be used by ll.steady_state_pytensor
+    # check if output can be used by lin_log.steady_state_pytensor
     test_model = pm.Model()
     with test_model:
         data_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
@@ -400,4 +397,44 @@ def test_create_pytensor_from_data():
         assert np.size(data_tensor.shape.eval()) == np.size(input_dataframe_mixed.shape), f"Expected tensor n dim {np.size(input_dataframe_mixed.shape)}, found {np.size(data_tensor.shape.eval())}"
         assert tuple(data_tensor.shape.eval()) == input_dataframe_mixed.shape, f"Expected tensor shape {input_dataframe_mixed.shape}, found {data_tensor.shape.eval()}"
 
+        # Check that the steady_state_pytensor method runs
+        error_occurred = False
+        try:
+            # Manually create a small stoichiometry matrix (3 metabolites x 2 reactions)
+            stoich_matrix = np.array([
+                [ 1, -1],
+                [-1,  1],
+                [ 0,  0]
+            ])
+            internal_elasticities = np.random.normal(size=(2,3))
+            external_elasticities = np.random.laplace(size=(2,3))
+            ref_flux = np.array([1, 1])
+
+            # Verify inputs steady state
+            assert np.allclose(stoich_matrix @ ref_flux, 0), "The reference flux values do not lead to a steady state."
+
+            lin_log = emll.LinLogLeastNorm(stoich_matrix, 
+                                    internal_elasticities, 
+                                    external_elasticities, 
+                                    ref_flux, 
+                                    driver="gelsy")
+
+            y_n = pm.Normal("yn_t", 
+                            mu=0, 
+                            sigma=10, 
+                            shape=(data_tensor.shape.eval()[0], lin_log.ny), 
+                            initval=0.1 * np.random.randn(data_tensor.shape.eval()[0], lin_log.ny)
+                            )
         
+            chi_ss, vn_ss = lin_log.steady_state_pytensor(
+                pytensor.tensor.as_tensor_variable(internal_elasticities),
+                pytensor.tensor.as_tensor_variable(external_elasticities),
+                data_tensor,
+                y_n
+            )
+        except Exception as e:
+            error_occurred = True
+            print(f"An error occurred during the test: {e}")
+
+        # Assert that no error occurred during the test
+        assert not error_occurred, "The code block did not execute successfully."
