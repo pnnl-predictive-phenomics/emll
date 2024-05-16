@@ -1,6 +1,8 @@
 
 from emll.data_model_integration import create_noisy_observations_of_computed_values
-from emll.data_model_integration import create_pytensor_from_data
+from emll.data_model_integration import create_pytensor_from_data_naive
+import emll
+
 import pytest 
 import pytensor
 import numpy as np
@@ -123,29 +125,29 @@ def test_create_pytensor_from_data():
     # check if type error is raised if name is not a string
     input_string_wrong_type = 42
     with pytest.raises(TypeError):
-        create_pytensor_from_data(input_string_wrong_type,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string_wrong_type,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
     
     # check if type error is raised if data is not a dataframe
     with pytest.raises(TypeError):
-        create_pytensor_from_data(input_string,input_data_dict_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_data_dict_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
 
     # check if type error is raised if the stdev is not a dataframe
     with pytest.raises(TypeError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dict_all_observed, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dict_all_observed, input_laplace_dataframe_no_observed)
 
     # check if type error is raised if the laplace is not a dataframe
     with pytest.raises(TypeError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dict_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dict_no_observed)
 
     # check if value error is raised if the shape of the data and stdev dataframes aren't equal
     input_stdev_dataframe_fewer_columns = input_stdev_dataframe_all_observed.drop(columns='x').copy(deep=True)
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_fewer_columns, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_fewer_columns, input_laplace_dataframe_no_observed)
 
     # check if value error is raised if the shape of the data and laplace dataframes aren't equal
     input_laplace_dataframe_fewer_columns = input_laplace_dataframe_no_observed.drop(columns='x').copy(deep=True)
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_fewer_columns)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_fewer_columns)
 
     # check if value error is raised if data values are not finite, np.inf, or np.nan
     input_data_dict_wrong_values = {
@@ -154,12 +156,12 @@ def test_create_pytensor_from_data():
     }
     input_dataframe_wrong_values = pd.DataFrame(input_data_dict_wrong_values)
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_wrong_values,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_wrong_values,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
 
     # check that a value error is raised if stdev values are not None or finite > 0
     input_stdev_dataframe_wrong_values = input_dataframe_wrong_values.copy(deep=True)
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_wrong_values, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_wrong_values, input_laplace_dataframe_no_observed)
 
     # check if value error is raised if the laplace dataframe values are not a (finite, postive finite) or np.nan
     input_laplace_dict_wrong_values = {
@@ -168,31 +170,31 @@ def test_create_pytensor_from_data():
     }
     input_laplace_dataframe_wrong_values = pd.DataFrame(input_laplace_dict_wrong_values)
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_wrong_values)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_wrong_values)
 
     # check that a value error is raised if the stdev columns don't match the data
     input_stdev_dataframe_wrong_cols = input_stdev_dataframe_all_observed.copy(deep=True).rename(columns={'x': 'z'})
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_wrong_cols, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_wrong_cols, input_laplace_dataframe_no_observed)
 
     # check that a value error is raised if the stdev rows don't match the data
     input_stdev_dataframe_renamed_index = input_stdev_dataframe_all_observed.copy(deep=True).rename(index={i: f'row{i+1}' for i in range(len(input_stdev_dataframe_all_observed))})
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_renamed_index, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_renamed_index, input_laplace_dataframe_no_observed)
 
     # check that a value error is raised if the laplace columns don't match the data
     input_laplace_dataframe_wrong_cols = input_laplace_dataframe_no_observed.copy(deep=True).rename(columns={'x': 'z'})
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_wrong_cols)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_wrong_cols)
 
     # check that a value error is raised if the laplace rows don't match the data
     input_laplace_dataframe_renamed_index = input_laplace_dataframe_no_observed.copy(deep=True).rename(index={i: f'row{i+1}' for i in range(len(input_laplace_dataframe_no_observed))})
     with pytest.raises(ValueError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_renamed_index)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_renamed_index)
     
     # check that type error is raised if not run in model context
     with pytest.raises(TypeError):
-        create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
+        create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_no_observed)
 
 
     ### check actual outputs match expected outputs ###
@@ -206,7 +208,7 @@ def test_create_pytensor_from_data():
     input_laplace_dataframe_all_observed = pd.DataFrame(input_laplace_dict_all_observed)
     test_model = pm.Model()
     with test_model:
-        data_tensor = create_pytensor_from_data(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_all_observed)
+        data_tensor = create_pytensor_from_data_naive(input_string,input_dataframe_all_observed,input_stdev_dataframe_all_observed, input_laplace_dataframe_all_observed)
         
         # traverse the computational graph to get only the random variables
         ancestor_nodes = ancestors([data_tensor])
@@ -251,7 +253,7 @@ def test_create_pytensor_from_data():
 
     test_model = pm.Model()
     with test_model:
-        data_tensor = create_pytensor_from_data(input_string,input_dataframe_no_observed,input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
+        data_tensor = create_pytensor_from_data_naive(input_string,input_dataframe_no_observed,input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
         
         # traverse the computational graph to get only the random variables
         ancestor_nodes = ancestors([data_tensor])
@@ -292,7 +294,7 @@ def test_create_pytensor_from_data():
 
     test_model = pm.Model()
     with test_model:
-        data_tensor = create_pytensor_from_data(input_string, input_dataframe_all_excluded, input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
+        data_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_all_excluded, input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
 
         # check the actual number of zeros is the same as expected
         tensor_values = data_tensor.eval()
@@ -321,8 +323,7 @@ def test_create_pytensor_from_data():
 
     test_model = pm.Model()
     with test_model:
-        data_tensor = create_pytensor_from_data(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
-        print(pytensor.dprint(data_tensor))
+        data_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
 
         # Traverse the computational graph to get only the random variables
         ancestor_nodes = ancestors([data_tensor])
@@ -389,3 +390,14 @@ def test_create_pytensor_from_data():
         assert num_normal == expected_num_normal, f"Expected {expected_num_normal} normal RVs, found {num_normal}"
         assert num_laplace == expected_num_laplace, f"Expected {expected_num_laplace} Laplace RVs, found {num_laplace}"
         assert actual_num_zeros == expected_num_zeros, f"Expected {expected_num_zeros} zeros, found {actual_num_zeros}"
+
+    # check if output can be used by ll.steady_state_pytensor
+    test_model = pm.Model()
+    with test_model:
+        data_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+
+        # check that the n-dim and shape are correct
+        assert np.size(data_tensor.shape.eval()) == np.size(input_dataframe_mixed.shape), f"Expected tensor n dim {np.size(input_dataframe_mixed.shape)}, found {np.size(data_tensor.shape.eval())}"
+        assert tuple(data_tensor.shape.eval()) == input_dataframe_mixed.shape, f"Expected tensor shape {input_dataframe_mixed.shape}, found {data_tensor.shape.eval()}"
+
+        

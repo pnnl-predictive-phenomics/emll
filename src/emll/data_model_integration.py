@@ -61,7 +61,7 @@ def create_noisy_observations_of_computed_values(name:str, computed_tensor:T.ten
     return rv
 
 
-def create_pytensor_from_data(name:str, data:pd.DataFrame, normal_stdev:pd.DataFrame, laplace_loc_and_scale:pd.date_range)->T.tensor:  # noqa: D417
+def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd.DataFrame, laplace_loc_and_scale:pd.date_range)->T.tensor:  # noqa: D417
     """Creates a pytensor from data with missing values. 
 
     Args:
@@ -181,17 +181,17 @@ def create_pytensor_from_data(name:str, data:pd.DataFrame, normal_stdev:pd.DataF
             if np.isfinite(data_value):  
                 # finite --> observed model variable --> Normal(log(variable value), 0.2)
                 sigma_value = normal_stdev.loc[row,col]
-                rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value, shape=(1,))
-                row_elements.append(rv)
+                rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
             elif np.isinf(data_value):
                 # Inf --> unobserved model variable --> Laplace(loc,scale)
                 loc_value = laplace_loc_and_scale.loc[row,col][0]
                 scale_value = laplace_loc_and_scale.loc[row,col][1]
-                rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value, shape=(1,))
-                row_elements.append(rv)
+                rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
             elif np.isnan(data_value):
                 # Nan --> model variable is zero (excluded)
-                row_elements.append(T.zeros(1))
-        tensor_elements.append(row_elements)
-    data_tensor = T.stacklists(tensor_elements)
+                rv = T.zeros(())  # Scalar zero tensor
+            row_elements.append(rv)  # Scalar zero tensor
+        row_tensor = T.stack(row_elements, axis=1)
+        tensor_elements.append(row_tensor)
+    data_tensor = T.stack(tensor_elements, axis=0)
     return data_tensor
