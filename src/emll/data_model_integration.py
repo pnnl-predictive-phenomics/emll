@@ -181,13 +181,13 @@ def create_pytensor_from_data(name:str, data:pd.DataFrame, normal_stdev:pd.DataF
             if np.isfinite(data_value):  
                 # finite --> observed model variable --> Normal(log(variable value), 0.2)
                 sigma_value = normal_stdev.loc[row,col]
-                rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
+                rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value, shape=(1,))
                 row_elements.append(rv)
             elif np.isinf(data_value):
                 # Inf --> unobserved model variable --> Laplace(loc,scale)
                 loc_value = laplace_loc_and_scale.loc[row,col][0]
                 scale_value = laplace_loc_and_scale.loc[row,col][1]
-                rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
+                rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value, shape=(1,))
                 row_elements.append(rv)
             elif np.isnan(data_value):
                 # Nan --> model variable is zero (excluded)

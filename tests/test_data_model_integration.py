@@ -252,7 +252,7 @@ def test_create_pytensor_from_data():
     test_model = pm.Model()
     with test_model:
         data_tensor = create_pytensor_from_data(input_string,input_dataframe_no_observed,input_stdev_dataframe_no_observed, input_laplace_dataframe_no_observed)
-        print(pytensor.dprint(data_tensor))
+        
         # traverse the computational graph to get only the random variables
         ancestor_nodes = ancestors([data_tensor])
         apply_nodes = [node for node in ancestor_nodes if isinstance(node, TensorVariable) and node.owner is not None]
@@ -300,16 +300,92 @@ def test_create_pytensor_from_data():
         expected_num_zeros = np.prod(input_dataframe_all_excluded.shape)
         assert actual_num_zeros == expected_num_zeros, f"Expected {expected_num_zeros} zeroes, found {actual_num_zeros}"
 
-        
 
-        # # test case 4: variables are a mixture of observed, unobserved, and excluded for all conditions
-    # input_data_dict_mixed = {
-    #     'x': [1.0, np.inf, np.nan],
-    #     'y': [np.inf, np.nan, 2]
-    # }
-    # input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
-    # input_stdev_dict_mixed = {
-    #     'x': [0.25, np.nan, np.nan],
-    #     'y': [np.nan, np.nan, 4]
-    # }
-    # input_stdev_dataframe_mixed = pd.DataFrame(input_stdev_dict_mixed)
+    # test case 4: variables are a mixture of observed, unobserved, and excluded for all conditions
+    # model variables can now be observed (float/int), unobserved (inf), or excluded (nan) across any condition
+    input_data_dict_mixed = {
+        'x': [1.0, 42, np.nan],
+        'y': [np.inf, np.nan, 2]
+    }
+    input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
+    input_stdev_dict_mixed = {
+        'x': [0.25, 7, np.nan],
+        'y': [np.nan, np.nan, 4]
+    }
+    input_stdev_dataframe_mixed = pd.DataFrame(input_stdev_dict_mixed)
+    input_laplace_dict_mixed = {
+        'x': [np.nan, np.nan, np.nan],
+        'y': [(-5,2), np.nan, np.nan]
+    }
+    input_laplace_dataframe_mixed = pd.DataFrame(input_laplace_dict_mixed)
+
+    test_model = pm.Model()
+    with test_model:
+        data_tensor = create_pytensor_from_data(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+        print(pytensor.dprint(data_tensor))
+
+        # Traverse the computational graph to get only the random variables
+        ancestor_nodes = ancestors([data_tensor])
+        apply_nodes = [node for node in ancestor_nodes if isinstance(node, TensorVariable) and node.owner is not None]
+        rv_nodes = [node for node in apply_nodes if isinstance(node.owner.op, RandomVariable)]
+
+        # Initialize counters for the number of each type of RV
+        num_normal = num_laplace = num_zeros = 0
+
+        # Initialize a separate index to track the position in the dataframe
+        dataframe_idx = 0
+
+        for idx, rv_node in enumerate(rv_nodes):
+            # Find the next non-NaN entry in the dataframe
+            while pd.isna(input_dataframe_mixed.values.flat[dataframe_idx]):
+                dataframe_idx += 1  # Skip NaN entries (excluded variables)
+
+            # Get the row and column names from the non-NaN position
+            row_idx, col_idx = np.unravel_index(dataframe_idx, input_dataframe_mixed.shape)
+            row_name = input_dataframe_mixed.index[row_idx]
+            col_name = input_dataframe_mixed.columns[col_idx]
+
+            # Get the expected name for the RV
+            expected_name = f"{input_string}_{row_name}_{col_name}"
+
+            # get the data value, stdev, and laplace params
+            value = input_dataframe_mixed.iloc[row_idx, col_idx]
+            stdev = input_stdev_dataframe_mixed.iloc[row_idx, col_idx]
+            laplace_params = input_laplace_dataframe_mixed.iloc[row_idx, col_idx]
+
+            # check the actual random variable type (normal), name, mean, and stdev matches expected
+            if np.isfinite(value):  # Observed data (Normal RV)
+                num_normal += 1
+                expected_mu = value
+                expected_sigma = stdev
+                assert rv_node.owner.op.name == 'normal', f"RV is not a normal distribution: {rv_node.owner.op.name}"
+                assert rv_node.name == expected_name, f"RV name mismatch: expected {expected_name}, got {rv_node.name}"
+                assert np.isclose(rv_node.owner.inputs[3].eval(), expected_mu), f"RV mu mismatch: expected {expected_mu}, got {rv_node.owner.inputs[3].eval()}"
+                assert np.isclose(rv_node.owner.inputs[4].eval(), expected_sigma), f"RV sigma mismatch: expected {expected_sigma}, got {rv_node.owner.inputs[4].eval()}"
+
+            # check the actual random variable type (Laplace), name, loc, and scale matches expected
+            elif np.isinf(value):  # Unobserved data (Laplace RV)
+                num_laplace += 1
+                expected_loc, expected_scale = laplace_params
+                assert rv_node.owner.op.name == 'laplace', f"RV is not a Laplace distribution: {rv_node.owner.op.name}"
+                assert rv_node.name == expected_name, f"RV name mismatch: expected {expected_name}, got {rv_node.name}"
+                assert np.isclose(rv_node.owner.inputs[3].eval(), expected_loc), f"RV loc mismatch: expected {expected_loc}, got {rv_node.owner.inputs[3].eval()}"
+                assert np.isclose(rv_node.owner.inputs[4].eval(), expected_scale), f"RV scale mismatch: expected {expected_scale}, got {rv_node.owner.inputs[4].eval()}"
+
+            elif pd.isna(value):  # Excluded data (Zeros)
+                num_zeros += 1
+
+            # Increment the dataframe index for the next iteration
+            dataframe_idx += 1
+
+        # Evaluate the tensor and count the zeros
+        tensor_values = data_tensor.eval()
+        actual_num_zeros = np.sum(tensor_values == 0)
+
+        # Check the counts of normal, Laplace, and zero values match expected
+        expected_num_normal = np.isfinite(input_dataframe_mixed.values).sum()
+        expected_num_laplace = np.isinf(input_dataframe_mixed.values).sum()
+        expected_num_zeros = pd.isna(input_dataframe_mixed.values).sum()
+        assert num_normal == expected_num_normal, f"Expected {expected_num_normal} normal RVs, found {num_normal}"
+        assert num_laplace == expected_num_laplace, f"Expected {expected_num_laplace} Laplace RVs, found {num_laplace}"
+        assert actual_num_zeros == expected_num_zeros, f"Expected {expected_num_zeros} zeros, found {actual_num_zeros}"
