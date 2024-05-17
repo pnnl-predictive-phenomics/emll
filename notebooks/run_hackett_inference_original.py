@@ -15,7 +15,6 @@ import pytensor.tensor as T
 import cobra
 import emll
 from emll.util import initialize_elasticity
-from emll.data_model_integration import create_noisy_observations_of_computed_values, create_pytensor_from_data_naive
 
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
@@ -109,33 +108,11 @@ with pm.Model() as pymc_model:
 
     Ey_t = T.as_tensor_variable(Ey)
 
-    # create data dataframe
-    # create stdev dataframe (0,0.1)
-    # create laplace dataframe (0,0.1)
-    n_rows = 1
-    n_cols = 1
-
-    n_rxns = 0
-    n_exp = 0
-    rxn_names = []
-    exp_names = []
-
-    # for external metabolites and enzyme tensors
-    # create empty dataframe of n_exps x n_rxns with rxn names and exp names
-    
-
-
-    data_df = en.copy()
-    stdev_df = pd.DataFrame(np.full(data_df.shape, 0.2))
-    laplace_df = pd.DataFrame([[(0, 0.1) for _ in range(n_rows)] for _ in range(n_cols)])
-
-
     e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
     e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
     log_en_t = T.concatenate(
         [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
     )[:, e_indexer]
-
 
     pm.Deterministic("log_en_t", log_en_t)
 
