@@ -8,6 +8,7 @@ import pytest
 from emll.data_model_integration import create_noisy_observations_of_computed_values
 from emll.data_model_integration import create_pytensor_from_data_naive
 from emll.data_model_integration import hackett_enzyme_file_to_dataclass
+from emll.util import assert_tensor_equal
 from pytensor.graph.basic import ancestors
 from pytensor.tensor.variable import TensorVariable
 from pytensor.tensor.random.op import RandomVariable 
@@ -494,3 +495,41 @@ def test_hackett_enzyme_file_to_dataclass():
 
     # check that expected_dataframe == actual_dataframe
     assert np.isclose(expected_data,actual_dataframe,equal_nan=True).all().all(), f"expected:{expected_data.to_markdown()}, actual:{actual_dataframe.to_markdown()}"
+
+
+def test_assert_tensor_equal():
+    input_string = 'test'
+
+    input_data_dict_mixed = {
+        'x': [1.0, 42, np.nan],
+        'y': [np.inf, np.nan, 2]
+    }
+    input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
+    input_stdev_dict_mixed = {
+        'x': [0.25, 7, np.nan],
+        'y': [np.nan, np.nan, 4]
+    }
+    input_stdev_dataframe_mixed = pd.DataFrame(input_stdev_dict_mixed)
+    input_laplace_dict_mixed = {
+        'x': [np.nan, np.nan, np.nan],
+        'y': [(-5,2), np.nan, np.nan]
+    }
+    input_laplace_dataframe_mixed = pd.DataFrame(input_laplace_dict_mixed)
+
+
+    test_model = pm.Model()
+    with test_model:
+        expected_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+        actual_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+        assert_tensor_equal(expected_tensor,actual_tensor)
+
+        with pytest.raises(ValueError):
+            actual_tensor = create_pytensor_from_data_naive("wrong_name", 
+                                                            input_dataframe_mixed.drop(columns=['y']), 
+                                                            input_stdev_dataframe_mixed.drop(columns=['y']), 
+                                                            input_laplace_dataframe_mixed.drop(columns=['y']))
+            assert_tensor_equal(expected_tensor,actual_tensor)
+        
+
+
+

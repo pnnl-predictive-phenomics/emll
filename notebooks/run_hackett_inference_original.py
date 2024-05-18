@@ -137,25 +137,38 @@ with pm.Model() as pymc_model:
 
 
 if __name__ == "__main__":
-    with pymc_model:
-        approx = pm.ADVI()
-        hist = approx.fit(
-            n=40000,
-            obj_optimizer=pm.adagrad_window(learning_rate=0.005),
-            total_grad_norm_constraint=100,
-        )
+    # with pymc_model:
+    #     approx = pm.ADVI()
+    #     hist = approx.fit(
+    #         n=10,
+    #         obj_optimizer=pm.adagrad_window(learning_rate=0.005),
+    #         total_grad_norm_constraint=100,
+    #     )
 
         # trace = hist.sample(500)
         # ppc = pm.sample_ppc(trace)
 
-    import gzip
-    import cloudpickle
+    with pymc_model:
+        trace_prior = pm.sample_prior_predictive(samples=100)
 
-    with gzip.open("data/hackett_advi.pgz", "wb") as f:
-        cloudpickle.dump(
+    import gzip
+    #import cloudpickle
+    import dill
+
+    # with gzip.open("data/hackett_advi_expected.pgz", "wb") as f:
+    #     cloudpickle.dump(
+    #         {
+    #             "approx": approx,
+    #             "hist": hist,
+    #         },
+    #         f,
+    #     )
+
+    with gzip.open("data/hackett_advi_expected.pgz", "wb") as f:
+        dill.dump(
             {
-                "approx": approx,
-                "hist": hist,
+                "trace_prior": trace_prior,
+                "pymc_model":pymc_model
             },
             f,
         )

@@ -15,7 +15,8 @@ import pytensor.tensor as T
 import cobra
 import emll
 from emll.util import initialize_elasticity
-from emll.data_model_integration import create_noisy_observations_of_computed_values, create_pytensor_from_data_naive
+from emll.data_model_integration import create_noisy_observations_of_computed_values, create_pytensor_from_data_naive, hackett_enzyme_file_to_dataclass
+from emll.util import assert_tensor_equal
 
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
@@ -109,42 +110,44 @@ with pm.Model() as pymc_model:
 
     Ey_t = T.as_tensor_variable(Ey)
 
-    # create data dataframe
-    # create stdev dataframe (0,0.1)
-    # create laplace dataframe (0,0.1)
-    n_rows = 1
-    n_cols = 1
-
-    n_rxns = 0
-    n_exp = 0
-    rxn_names = []
-    exp_names = []
-
     # for external metabolites and enzyme tensors
     # create empty dataframe of n_exps x n_rxns with rxn names and exp names
-    
 
 
-    data_df = en.copy()
-    stdev_df = pd.DataFrame(np.full(data_df.shape, 0.2))
-    laplace_df = pd.DataFrame([[(0, 0.1) for _ in range(n_rows)] for _ in range(n_cols)])
 
+    enzyme_data = hackett_enzyme_file_to_dataclass(
+        fname="data/enzyme_measurements.csv",
+        condition_names=to_consider,
+        cobra_model=model,
+        ref_condition="P0.11",
+        external_compartment='e'
+    )
 
-    e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
-    e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
-    log_en_t = T.concatenate(
-        [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
-    )[:, e_indexer]
+    log_enzyme_tensor = create_pytensor_from_data_naive(
+        name='log_enzyme',
+        data=np.log(enzyme_data),
+        normal_stdev=pd.DataFrame(0.2, columns=enzyme_data.columns, index=enzyme_data.index),
+        laplace_loc_and_scale=pd.DataFrame(columns=enzyme_data.columns, 
+                                           index=enzyme_data.index).map(lambda x: (0,0.1))
+    )
 
+    # e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
+    # e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
+    # log_en_t = T.concatenate(
+    #     [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
+    # )[:, e_indexer]
 
-    pm.Deterministic("log_en_t", log_en_t)
+    # assert_tensor_equal(log_en_t,log_enzyme_tensor,check_name=False)
+    # assert(1==0)
+
+    pm.Deterministic("log_en_t", log_enzyme_tensor)
 
     # Priors on external concentrations
     yn_t = pm.Normal(
         "yn_t", mu=0, sigma=10, shape=(n_exp, ll.ny), initval=0.1 * np.random.randn(n_exp, ll.ny)
     )
 
-    chi_ss, vn_ss = ll.steady_state_pytensor(Ex_t, Ey_t, T.exp(log_en_t), yn_t)
+    chi_ss, vn_ss = ll.steady_state_pytensor(Ex_t, Ey_t, T.exp(log_enzyme_tensor), yn_t)
     pm.Deterministic("chi_ss", chi_ss)
     pm.Deterministic("vn_ss", vn_ss)
 
@@ -160,25 +163,40 @@ with pm.Model() as pymc_model:
 
 
 if __name__ == "__main__":
-    with pymc_model:
-        approx = pm.ADVI()
-        hist = approx.fit(
-            n=40000,
-            obj_optimizer=pm.adagrad_window(learning_rate=0.005),
-            total_grad_norm_constraint=100,
-        )
+    # with pymc_model:
+    #     approx = pm.ADVI()
+    #     hist = approx.fit(
+    #         n=40000,
+    #         obj_optimizer=pm.adagrad_window(learning_rate=0.005),
+    #         total_grad_norm_constraint=100,
+    #     )
 
-        # trace = hist.sample(500)
-        # ppc = pm.sample_ppc(trace)
+    #     # trace = hist.sample(500)
+    #     # ppc = pm.sample_ppc(trace)
+
+    # import gzip
+    # import cloudpickle
+
+    # with gzip.open("data/hackett_advi.pgz", "wb") as f:
+    #     cloudpickle.dump(
+    #         {
+    #             "approx": approx,
+    #             "hist": hist,
+    #         },
+    #         f,
+    #     )
+
+    with pymc_model:
+        trace_prior = pm.sample_prior_predictive(samples=100)
 
     import gzip
-    import cloudpickle
+    import dill
 
-    with gzip.open("data/hackett_advi.pgz", "wb") as f:
-        cloudpickle.dump(
+    with gzip.open("data/hackett_advi_actual.pgz", "wb") as f:
+        dill.dump(
             {
-                "approx": approx,
-                "hist": hist,
+                "trace_prior": trace_prior,
+                "pymc_model":pymc_model
             },
             f,
         )
