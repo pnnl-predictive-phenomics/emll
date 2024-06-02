@@ -148,12 +148,12 @@ if __name__ == "__main__":
         # trace = hist.sample(500)
         # ppc = pm.sample_ppc(trace)
 
-    with pymc_model:
-        trace_prior = pm.sample_prior_predictive(samples=100)
+    # with pymc_model:
+    #     trace_prior = pm.sample_prior_predictive(samples=100)
 
-    import gzip
-    #import cloudpickle
-    import dill
+    # import gzip
+    # #import cloudpickle
+    # import dill
 
     # with gzip.open("data/hackett_advi_expected.pgz", "wb") as f:
     #     cloudpickle.dump(
@@ -164,11 +164,40 @@ if __name__ == "__main__":
     #         f,
     #     )
 
-    with gzip.open("data/hackett_advi_expected.pgz", "wb") as f:
-        dill.dump(
-            {
+    n_samples = 10000
+    n_iterations = 10
+    with pymc_model:
+        trace_prior = pm.sample_prior_predictive(samples=n_samples)
+        # approx = pm.ADVI()
+        # hist = approx.fit(
+        #     n=n_iterations,
+        #     obj_optimizer=pm.adagrad_window(learning_rate=0.005),
+        #     total_grad_norm_constraint=100,
+        # )
+
+        # trace = hist.sample(n_samples)
+        # ppc = pm.sample_posterior_predictive(trace)
+
+    import gzip
+    import dill
+
+    # output_dict = {
+    #             "trace_prior": trace_prior,
+    #             "pymc_model":pymc_model,
+    #             "approx": approx,
+    #             "hist": hist,
+    #             "trace": trace, 
+    #             "ppc": ppc
+    # }
+
+    output_dict = {
                 "trace_prior": trace_prior,
-                "pymc_model":pymc_model
-            },
-            f,
-        )
+                "pymc_model":pymc_model,
+                # "hist": hist,
+                # "trace": trace, 
+                # "ppc": ppc
+    }
+
+    with gzip.open(f"data/hackett_advi_prior_predictive_expected_n{n_samples}.pgz", "wb") as f:
+        dill.dump(output_dict,f,)
+

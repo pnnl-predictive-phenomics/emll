@@ -182,12 +182,14 @@ def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd
             if np.isfinite(data_value):  
                 # finite --> observed model variable --> Normal(log(variable value), 0.2)
                 sigma_value = normal_stdev.loc[row,col]
-                rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
+                #rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
+                rv = pm.Normal(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
             elif np.isinf(data_value):
                 # Inf --> unobserved model variable --> Laplace(loc,scale)
                 loc_value = laplace_loc_and_scale.loc[row,col][0]
                 scale_value = laplace_loc_and_scale.loc[row,col][1]
-                rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
+                #rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
+                rv = pm.Laplace(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
             elif np.isnan(data_value):
                 # Nan --> model variable is zero (excluded)
                 rv = T.zeros(())  # Scalar zero tensor
@@ -233,9 +235,9 @@ def hackett_enzyme_file_to_dataclass(fname:str, condition_names:list[str], cobra
                 if reaction_id in rxn_names:
                     dataclass.loc[experiment,reaction_id] = enzyme_activity.loc[experiment,reaction_id]
 
-    # fill in the the dataframe if external reaction or transport reaction
+    # fill in the the dataframe if external reaction or transport reaction, and not observed in data
     for rxn in cobra_model.reactions:
-        if (external_compartment in rxn.compartments) or (len(rxn.compartments) > 1):
+        if (rxn.id not in enzyme_activity) and ((external_compartment in rxn.compartments) or (len(rxn.compartments) > 1)):
             dataclass[rxn.id]=np.nan
 
     return dataclass

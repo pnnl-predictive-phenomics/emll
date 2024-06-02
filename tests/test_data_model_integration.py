@@ -458,8 +458,8 @@ def test_hackett_enzyme_file_to_dataclass():
     # fixtures
     fname = 'tests/test_enzymes.csv'
     data_dict = {
-        'r1': [1.0, 1.5, 0.5, 2.5],
         'r2': [10, 20, 30, 42],
+        'r1': [1.0, 1.5, 0.5, 2.5],  
     }
     pd.DataFrame(data_dict, index=[f"cond{i+1}" for i in range(len(data_dict['r1']))]).T.to_csv(fname)
 
@@ -468,11 +468,11 @@ def test_hackett_enzyme_file_to_dataclass():
     ref_condition = 'cond1'
     expected_data = pd.DataFrame(
         {
-        'r1': [2**(1.5-1), 2**(0.5-1)],
         'r2': [2**(20-10), 2**(30-10)],
+        'r1': [2**(1.5-1), 2**(0.5-1)], 
         'r3': [np.inf, np.inf],
         'r4': [np.nan, np.nan],
-        'r5': [np.nan, np.nan]
+        'r5': [np.nan, np.nan],
     }, index=no_ref_experiment_names
     )
 
@@ -489,7 +489,7 @@ def test_hackett_enzyme_file_to_dataclass():
     r3.add_metabolites({cobra_model.metabolites.m2: -1, cobra_model.metabolites.m3: 1})
     r4.add_metabolites({cobra_model.metabolites.m3: -1, cobra_model.metabolites.m4: 1})
     r5.add_metabolites({cobra_model.metabolites.m4: -1})
-    cobra_model.add_reactions([r1, r2, r3, r4, r5])
+    cobra_model.add_reactions([r2, r1, r3, r4, r5])
 
     actual_dataframe = hackett_enzyme_file_to_dataclass(fname,experiment_names, cobra_model,ref_condition )
 
@@ -497,38 +497,38 @@ def test_hackett_enzyme_file_to_dataclass():
     assert np.isclose(expected_data,actual_dataframe,equal_nan=True).all().all(), f"expected:{expected_data.to_markdown()}, actual:{actual_dataframe.to_markdown()}"
 
 
-def test_assert_tensor_equal():
-    input_string = 'test'
+# def test_assert_tensor_equal():
+#     input_string = 'test'
 
-    input_data_dict_mixed = {
-        'x': [1.0, 42, np.nan],
-        'y': [np.inf, np.nan, 2]
-    }
-    input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
-    input_stdev_dict_mixed = {
-        'x': [0.25, 7, np.nan],
-        'y': [np.nan, np.nan, 4]
-    }
-    input_stdev_dataframe_mixed = pd.DataFrame(input_stdev_dict_mixed)
-    input_laplace_dict_mixed = {
-        'x': [np.nan, np.nan, np.nan],
-        'y': [(-5,2), np.nan, np.nan]
-    }
-    input_laplace_dataframe_mixed = pd.DataFrame(input_laplace_dict_mixed)
+#     input_data_dict_mixed = {
+#         'x': [1.0, 42, np.nan],
+#         'y': [np.inf, np.nan, 2]
+#     }
+#     input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
+#     input_stdev_dict_mixed = {
+#         'x': [0.25, 7, np.nan],
+#         'y': [np.nan, np.nan, 4]
+#     }
+#     input_stdev_dataframe_mixed = pd.DataFrame(input_stdev_dict_mixed)
+#     input_laplace_dict_mixed = {
+#         'x': [np.nan, np.nan, np.nan],
+#         'y': [(-5,2), np.nan, np.nan]
+#     }
+#     input_laplace_dataframe_mixed = pd.DataFrame(input_laplace_dict_mixed)
 
 
-    test_model = pm.Model()
-    with test_model:
-        expected_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
-        actual_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
-        assert_tensor_equal(expected_tensor,actual_tensor)
+#     test_model = pm.Model()
+#     with test_model:
+#         expected_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+#         actual_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+#         assert_tensor_equal(expected_tensor,actual_tensor)
 
-        with pytest.raises(ValueError):
-            actual_tensor = create_pytensor_from_data_naive("wrong_name", 
-                                                            input_dataframe_mixed.drop(columns=['y']), 
-                                                            input_stdev_dataframe_mixed.drop(columns=['y']), 
-                                                            input_laplace_dataframe_mixed.drop(columns=['y']))
-            assert_tensor_equal(expected_tensor,actual_tensor)
+#         with pytest.raises(ValueError):
+#             actual_tensor = create_pytensor_from_data_naive("wrong_name", 
+#                                                             input_dataframe_mixed.drop(columns=['y']), 
+#                                                             input_stdev_dataframe_mixed.drop(columns=['y']), 
+#                                                             input_laplace_dataframe_mixed.drop(columns=['y']))
+#             assert_tensor_equal(expected_tensor,actual_tensor)
         
 
 

@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sp
+import pytensor
 import pytensor.tensor as at
 import pymc as pm
 
@@ -249,6 +250,9 @@ def assert_tensor_equal(expected_tensor, actual_tensor, check_name=True):
     if (expected_tensor.shape.eval() != actual_tensor.shape.eval()).all():
         raise ValueError(f"expected tensor shape {expected_tensor.shape.eval()} != actual tensor shape {actual_tensor.shape.eval()}")
 
+    #print(pytensor.dprint(ancestors([expected_tensor])))
+
+      
 
     # Traverse the computational graph to get only the random variables
     expected_ancestor_nodes = ancestors([expected_tensor])
@@ -259,24 +263,32 @@ def assert_tensor_equal(expected_tensor, actual_tensor, check_name=True):
     actual_apply_nodes = [node for node in actual_ancestor_nodes if isinstance(node, TensorVariable) and node.owner is not None]
     actual_rv_nodes = [node for node in actual_apply_nodes if isinstance(node.owner.op, RandomVariable)]
 
-    expected_rv_shapes = [rv.shape.eval() for rv in expected_rv_nodes]
-    actual_rv_shapes = [rv.shape.eval() for rv in actual_rv_nodes]
-    print(f"expected: {expected_rv_shapes}")
-    print(f"actual: {actual_rv_shapes}")
+    assert 1==0
 
-    # check the expected and actual number of RVs is equal
-    if len(expected_rv_nodes) != len(actual_rv_nodes):
-        raise ValueError(f"number of expected rvs { len(expected_rv_nodes)} != number of actual rvs {len(actual_rv_nodes)}") 
+    # expected_rv_shapes = [rv.shape.eval() for rv in expected_rv_nodes]
+    # actual_rv_shapes = [rv.shape.eval() for rv in actual_rv_nodes]
+    # #print(f"expected: {expected_rv_shapes}")
+    # #print(f"actual: {actual_rv_shapes}")
 
-    actual_rv_names = {node.name for node in actual_rv_nodes}
-    expected_rv_names = {node.name for node in expected_rv_nodes}
+    # expected_rv_names_list = [node.name for node in expected_rv_nodes]
+    # print(expected_rv_names_list[0])
+    # assert(1==0)
 
-    # check names of random variables
-    if len(actual_rv_names) != len(expected_rv_names):
-        raise ValueError(f"length of expected names {len(expected_rv_names)} != actual {len(actual_rv_names)}")
+    # # check the expected and actual number of RVs is equal
+    # # if len(expected_rv_nodes) != len(actual_rv_nodes):
+    # #     raise ValueError(f"number of expected rvs { len(expected_rv_nodes)} != number of actual rvs {len(actual_rv_nodes)}") 
 
-    if check_name and actual_rv_names!=expected_rv_names:
-        raise ValueError(f"{expected_rv_names-actual_rv_names} in expected but not actual. {actual_rv_names-expected_rv_names} in actual but not expected.")
+    # actual_rv_names = {node.name for node in actual_rv_nodes}
+    # expected_rv_names = {node.name for node in expected_rv_nodes}
+
+
+
+    # # check names of random variables
+    # if len(actual_rv_names) != len(expected_rv_names):
+    #     raise ValueError(f"length of expected names {len(expected_rv_names)} != actual {len(actual_rv_names)}")
+
+    # if check_name and actual_rv_names!=expected_rv_names:
+    #     raise ValueError(f"{expected_rv_names-actual_rv_names} in expected but not actual. {actual_rv_names-expected_rv_names} in actual but not expected.")
 
 
 
