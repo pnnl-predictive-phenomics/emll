@@ -394,8 +394,8 @@ def test_create_pytensor_from_data():
         data_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
 
         # check that the n-dim and shape are correct
-        assert np.size(data_tensor.shape.eval()) == np.size(input_dataframe_mixed.shape), f"Expected tensor n dim {np.size(input_dataframe_mixed.shape)}, found {np.size(data_tensor.shape.eval())}"
-        assert tuple(data_tensor.shape.eval()) == input_dataframe_mixed.shape, f"Expected tensor shape {input_dataframe_mixed.shape}, found {data_tensor.shape.eval()}"
+        assert np.size(data_tensor.eval().shape) == np.size(input_dataframe_mixed.shape), f"Expected tensor n dim {np.size(input_dataframe_mixed.shape)}, found {np.size(data_tensor.eval().shape)}"
+        assert tuple(data_tensor.eval().shape) == input_dataframe_mixed.shape, f"Expected tensor shape {input_dataframe_mixed.shape}, found {data_tensor.eval().shape}"
 
         # Check that the steady_state_pytensor method runs
         error_occurred = False
@@ -422,8 +422,8 @@ def test_create_pytensor_from_data():
             y_n = pm.Normal("yn_t", 
                             mu=0, 
                             sigma=10, 
-                            shape=(data_tensor.shape.eval()[0], lin_log.ny), 
-                            initval=0.1 * np.random.randn(data_tensor.shape.eval()[0], lin_log.ny)
+                            shape=(data_tensor.eval().shape[0], lin_log.ny), 
+                            initval=0.1 * np.random.randn(data_tensor.eval().shape[0], lin_log.ny)
                             )
         
             chi_ss, vn_ss = lin_log.steady_state_pytensor(
