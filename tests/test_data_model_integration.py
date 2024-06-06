@@ -7,9 +7,14 @@ import pytest
 
 from emll.data_model_integration import create_noisy_observations_of_computed_values
 from emll.data_model_integration import create_pytensor_from_data_naive
+from emll.data_model_integration import hackett_enzyme_file_to_dataclass
+from emll.util import assert_tensor_equal
 from pytensor.graph.basic import ancestors
 from pytensor.tensor.variable import TensorVariable
 from pytensor.tensor.random.op import RandomVariable 
+
+from cobra.core import Metabolite, Reaction
+from cobra.core.model import Model
 
 
 def test_create_noisy_observations_of_computed_values():
@@ -438,3 +443,93 @@ def test_create_pytensor_from_data():
 
         # Assert that no error occurred during the test
         assert not error_occurred, "The code block did not execute successfully."
+
+
+def test_hackett_enzyme_file_to_dataclass():
+    """
+    Test the 'hackett_enzyme_file_to_dataclass' function.
+
+    This function tests the functionality of the 'hackett_enzyme_file_to_dataclass' function by comparing the expected output with the actual output. It checks whether the enzyme activity data is correctly converted to a pandas DataFrame dataclass.
+
+    Raises:
+    -------
+    AssertionError: If the expected output does not match the actual output.
+    """
+    # fixtures
+    fname = 'tests/test_enzymes.csv'
+    data_dict = {
+        'r2': [10, 20, 30, 42],
+        'r1': [1.0, 1.5, 0.5, 2.5],  
+    }
+    pd.DataFrame(data_dict, index=[f"cond{i+1}" for i in range(len(data_dict['r1']))]).T.to_csv(fname)
+
+    experiment_names = ['cond1', 'cond2', 'cond3']  # only consider these 3 conditions
+    no_ref_experiment_names = ['cond2', 'cond3']
+    ref_condition = 'cond1'
+    expected_data = pd.DataFrame(
+        {
+        'r2': [2**(20-10), 2**(30-10)],
+        'r1': [2**(1.5-1), 2**(0.5-1)], 
+        'r3': [np.inf, np.inf],
+        'r4': [np.nan, np.nan],
+        'r5': [np.nan, np.nan],
+    }, index=no_ref_experiment_names
+    )
+
+    cobra_model = Model("test_model")
+    r1 = Reaction("r1")
+    r2 = Reaction("r2")
+    r3 = Reaction("r3")
+    r4 = Reaction("r4")
+    r5 = Reaction("r5")
+
+    cobra_model.add_metabolites([Metabolite("m1"), Metabolite("m2"), Metabolite("m3"), Metabolite("m4", compartment='e')])
+    r1.add_metabolites({cobra_model.metabolites.m1: 1})
+    r2.add_metabolites({cobra_model.metabolites.m1: -1, cobra_model.metabolites.m2: 1})
+    r3.add_metabolites({cobra_model.metabolites.m2: -1, cobra_model.metabolites.m3: 1})
+    r4.add_metabolites({cobra_model.metabolites.m3: -1, cobra_model.metabolites.m4: 1})
+    r5.add_metabolites({cobra_model.metabolites.m4: -1})
+    cobra_model.add_reactions([r2, r1, r3, r4, r5])
+
+    actual_dataframe = hackett_enzyme_file_to_dataclass(fname,experiment_names, cobra_model,ref_condition )
+
+    # check that expected_dataframe == actual_dataframe
+    assert np.isclose(expected_data,actual_dataframe,equal_nan=True).all().all(), f"expected:{expected_data.to_markdown()}, actual:{actual_dataframe.to_markdown()}"
+
+
+# def test_assert_tensor_equal():
+#     input_string = 'test'
+
+#     input_data_dict_mixed = {
+#         'x': [1.0, 42, np.nan],
+#         'y': [np.inf, np.nan, 2]
+#     }
+#     input_dataframe_mixed = pd.DataFrame(input_data_dict_mixed)
+#     input_stdev_dict_mixed = {
+#         'x': [0.25, 7, np.nan],
+#         'y': [np.nan, np.nan, 4]
+#     }
+#     input_stdev_dataframe_mixed = pd.DataFrame(input_stdev_dict_mixed)
+#     input_laplace_dict_mixed = {
+#         'x': [np.nan, np.nan, np.nan],
+#         'y': [(-5,2), np.nan, np.nan]
+#     }
+#     input_laplace_dataframe_mixed = pd.DataFrame(input_laplace_dict_mixed)
+
+
+#     test_model = pm.Model()
+#     with test_model:
+#         expected_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+#         actual_tensor = create_pytensor_from_data_naive(input_string, input_dataframe_mixed, input_stdev_dataframe_mixed, input_laplace_dataframe_mixed)
+#         assert_tensor_equal(expected_tensor,actual_tensor)
+
+#         with pytest.raises(ValueError):
+#             actual_tensor = create_pytensor_from_data_naive("wrong_name", 
+#                                                             input_dataframe_mixed.drop(columns=['y']), 
+#                                                             input_stdev_dataframe_mixed.drop(columns=['y']), 
+#                                                             input_laplace_dataframe_mixed.drop(columns=['y']))
+#             assert_tensor_equal(expected_tensor,actual_tensor)
+        
+
+
+

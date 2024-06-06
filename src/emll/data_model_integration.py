@@ -3,6 +3,7 @@ import pytensor
 import pandas as pd
 import numpy as np
 import pytensor.tensor as T
+import cobra
 
 def create_noisy_observations_of_computed_values(name:str, computed_tensor:T.tensor, data:pd.DataFrame, estimated_stdev:pd.DataFrame)->dict[tuple[int,int], T.tensor]:  # noqa: D417
     """Create noisy observations of computed values.
@@ -41,7 +42,7 @@ def create_noisy_observations_of_computed_values(name:str, computed_tensor:T.ten
 
     # check that model context exists
     try:
-        model_context = pm.Model.get_context()
+        pm.Model.get_context()
     except TypeError as e:
         raise ValueError("Function must be run within a PyMC model context.") from e
 
@@ -61,7 +62,7 @@ def create_noisy_observations_of_computed_values(name:str, computed_tensor:T.ten
     return rv
 
 
-def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd.DataFrame, laplace_loc_and_scale:pd.date_range)->T.tensor:  # noqa: D417
+def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd.DataFrame, laplace_loc_and_scale:pd.DataFrame)->T.tensor:  # noqa: D417
     """Creates a pytensor from data with missing values. 
 
     Args:
@@ -71,7 +72,7 @@ def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd
         normal_stdev (pd.DataFrame): Standard deviations to use for observed data. 
         Each value must be either np.nan or positive np.finite, and the dataframe must have the 
         same shape as the data.
-        laplace_loc_and_scale (pd.date_range): Laplace location (mu) and scale (b) parameters for 
+        laplace_loc_and_scale (pd.DataFrame): Laplace location (mu) and scale (b) parameters for 
         unobserved variables. Each value must be either a tuple (mu,b) or np.nan, with mu np.finite
         and b positive finite, and dataframe must have the same shape as the data. 
 
@@ -169,7 +170,7 @@ def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd
 
     # check that model context exists
     try:
-        model_context = pm.Model.get_context()
+        pm.Model.get_context()
     except TypeError as e:
         raise TypeError("Function must be run within a PyMC model context.") from e
 
@@ -181,12 +182,14 @@ def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd
             if np.isfinite(data_value):  
                 # finite --> observed model variable --> Normal(log(variable value), 0.2)
                 sigma_value = normal_stdev.loc[row,col]
-                rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
+                #rv = pm.Normal.dist(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
+                rv = pm.Normal(name=f'{name}_{row}_{col}', mu=data_value, sigma=sigma_value)
             elif np.isinf(data_value):
                 # Inf --> unobserved model variable --> Laplace(loc,scale)
                 loc_value = laplace_loc_and_scale.loc[row,col][0]
                 scale_value = laplace_loc_and_scale.loc[row,col][1]
-                rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
+                #rv = pm.Laplace.dist(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
+                rv = pm.Laplace(name=f'{name}_{row}_{col}', mu=loc_value, b=scale_value)
             elif np.isnan(data_value):
                 # Nan --> model variable is zero (excluded)
                 rv = T.zeros(())  # Scalar zero tensor
@@ -195,3 +198,50 @@ def create_pytensor_from_data_naive(name:str, data:pd.DataFrame, normal_stdev:pd
         tensor_elements.append(row_tensor)
     data_tensor = T.stack(tensor_elements, axis=0)
     return data_tensor
+
+
+def hackett_enzyme_file_to_dataclass(fname:str, condition_names:list[str], cobra_model:cobra.Model, ref_condition:str="P0.11", external_compartment:str="e")->pd.DataFrame:
+    """
+    Converts a Hackett-style enzyme activity file to a pandas DataFrame dataclass.
+
+    Parameters:
+    -----------
+    fname (str): The file name of the enzyme activity file.
+    condition_names (list[str]): The list of experiment names.
+    cobra_model (cobra.Model): The COBRApy model object.
+    ref_condition (str, optional): The reference experiment name. Defaults to "P0.11".
+    external_compartment (str, optional): The external compartment name. Defaults to "e".
+
+    Returns:
+    --------
+    pd.DataFrame: The dataclass containing the enzyme activity data.
+
+    """
+
+    rxn_names = [r.id for r in cobra_model.reactions]
+    enzyme_activity_log2 = pd.read_csv(fname, index_col=0)
+    enzyme_activity_log2 = enzyme_activity_log2.loc[:, condition_names]
+    enzyme_activity = (2 ** enzyme_activity_log2.subtract(enzyme_activity_log2[ref_condition], 0)).T
+    enzyme_activity = enzyme_activity.drop(ref_condition)
+    no_ref_condition_names = [cond for cond in condition_names if cond != ref_condition]
+
+    # create dataframe assuming unmeasured by default - n_exps (rows) x n_rxns (cols)
+    dataclass = pd.DataFrame(np.inf,columns=rxn_names,index=no_ref_condition_names)
+
+    # fill in the dataframe with measured enzyme activities
+    for experiment in enzyme_activity.index:
+        if experiment in no_ref_condition_names:
+            for reaction_id in enzyme_activity.columns:
+                if reaction_id in rxn_names:
+                    dataclass.loc[experiment,reaction_id] = enzyme_activity.loc[experiment,reaction_id]
+
+    # fill in the the dataframe if external reaction or transport reaction, and not observed in data
+    for rxn in cobra_model.reactions:
+        if (rxn.id not in enzyme_activity) and ((external_compartment in rxn.compartments) or (len(rxn.compartments) > 1)):
+            dataclass[rxn.id]=np.nan
+
+    return dataclass
+
+
+    
+

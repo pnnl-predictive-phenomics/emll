@@ -15,13 +15,6 @@ import pytensor.tensor as T
 import cobra
 import emll
 from emll.util import initialize_elasticity
-from emll.data_model_integration import create_noisy_observations_of_computed_values, create_pytensor_from_data_naive, hackett_enzyme_file_to_dataclass
-from emll.util import assert_tensor_equal
-
-
-from pytensor.graph.basic import ancestors
-from pytensor.tensor.variable import TensorVariable
-from pytensor.tensor.random.op import RandomVariable 
 
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
@@ -115,56 +108,20 @@ with pm.Model() as pymc_model:
 
     Ey_t = T.as_tensor_variable(Ey)
 
-    # for external metabolites and enzyme tensors
-    # create empty dataframe of n_exps x n_rxns with rxn names and exp names
+    e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
+    e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
+    log_en_t = T.concatenate(
+        [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
+    )[:, e_indexer]
 
-
-
-    enzyme_data = hackett_enzyme_file_to_dataclass(
-        fname="data/enzyme_measurements.csv",
-        condition_names=to_consider,
-        cobra_model=model,
-        ref_condition="P0.11",
-        external_compartment='e'
-    )
-
-    # compare number of finite rows (observed / Normal)
-
-    assert len(e_inds) == (np.isfinite(enzyme_data).all()).sum()
-    assert len(e_laplace_inds) == (np.isinf(enzyme_data).all()).sum()
-
-    for enzyme_obs in e_inds:
-        assert np.isfinite(enzyme_data.iloc[:,enzyme_obs]).all(), f"reaction:{enzyme_data.columns[enzyme_obs]} conditions:{enzyme_data.iloc[:,enzyme_obs]}"
-        
-    for enzyme_no_obs in e_laplace_inds:
-        assert np.isinf(enzyme_data.iloc[:,enzyme_no_obs]).all(), f"reaction:{enzyme_data.columns[enzyme_no_obs]} conditions:{enzyme_data.iloc[:,enzyme_no_obs]}"    
-    
-    for enzyme_zeros in e_zero_inds:
-        assert pd.isna(enzyme_data.iloc[:,enzyme_zeros]).all(), f"reaction:{enzyme_data.columns[enzyme_zeros]} conditions:{enzyme_data.iloc[:,enzyme_zeros]}"    
-    
-
-    log_enzyme_tensor = create_pytensor_from_data_naive(
-        name='log_enzyme',
-        data=np.log(enzyme_data),
-        normal_stdev=pd.DataFrame(0.2, columns=enzyme_data.columns, index=enzyme_data.index),
-        laplace_loc_and_scale=pd.DataFrame(columns=enzyme_data.columns, 
-                                           index=enzyme_data.index).map(lambda x: (0,0.1))
-    )
-
-    # e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
-    # e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
-    # log_en_t = T.concatenate(
-    #     [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
-    # )[:, e_indexer]
-
-    pm.Deterministic("log_en_t", log_enzyme_tensor)
+    pm.Deterministic("log_en_t", log_en_t)
 
     # Priors on external concentrations
     yn_t = pm.Normal(
         "yn_t", mu=0, sigma=10, shape=(n_exp, ll.ny), initval=0.1 * np.random.randn(n_exp, ll.ny)
     )
 
-    chi_ss, vn_ss = ll.steady_state_pytensor(Ex_t, Ey_t, T.exp(log_enzyme_tensor), yn_t)
+    chi_ss, vn_ss = ll.steady_state_pytensor(Ex_t, Ey_t, T.exp(log_en_t), yn_t)
     pm.Deterministic("chi_ss", chi_ss)
     pm.Deterministic("vn_ss", vn_ss)
 
@@ -183,18 +140,22 @@ if __name__ == "__main__":
     # with pymc_model:
     #     approx = pm.ADVI()
     #     hist = approx.fit(
-    #         n=40000,
+    #         n=10,
     #         obj_optimizer=pm.adagrad_window(learning_rate=0.005),
     #         total_grad_norm_constraint=100,
     #     )
 
-    #     # trace = hist.sample(500)
-    #     # ppc = pm.sample_ppc(trace)
+        # trace = hist.sample(500)
+        # ppc = pm.sample_ppc(trace)
+
+    # with pymc_model:
+    #     trace_prior = pm.sample_prior_predictive(samples=100)
 
     # import gzip
-    # import cloudpickle
+    # #import cloudpickle
+    # import dill
 
-    # with gzip.open("data/hackett_advi.pgz", "wb") as f:
+    # with gzip.open("data/hackett_advi_expected.pgz", "wb") as f:
     #     cloudpickle.dump(
     #         {
     #             "approx": approx,
@@ -202,6 +163,7 @@ if __name__ == "__main__":
     #         },
     #         f,
     #     )
+
     n_samples = 10000
     n_iterations = 10
     with pymc_model:
@@ -231,39 +193,11 @@ if __name__ == "__main__":
     output_dict = {
                 "trace_prior": trace_prior,
                 "pymc_model":pymc_model,
+                # "hist": hist,
+                # "trace": trace, 
+                # "ppc": ppc
     }
 
-    with gzip.open(f"data/hackett_advi_prior_predictive_actual_n{n_samples}.pgz", "wb") as f:
+    with gzip.open(f"data/hackett_advi_prior_predictive_expected_n{n_samples}.pgz", "wb") as f:
         dill.dump(output_dict,f,)
 
-
-# model = cobra.io.load_yaml_model("data/jol2012.yaml")
-# e = pd.read_csv("data/enzyme_measurements.csv", index_col=0)
-
-# to_consider = v.columns
-# e = e.loc[:, to_consider]
-# n_exp = len(to_consider) - 1
-# en = (2 ** e.subtract(e["P0.11"], 0)).T
-# en = en.drop(ref_state)
-# e_inds = np.array([model.reactions.index(rxn) for rxn in en.columns])
-# e_laplace_inds = []
-# e_zero_inds = []
-
-# for i, rxn in enumerate(model.reactions):
-#     if rxn.id not in en.columns:
-#         if ("e" not in rxn.compartments) and (len(rxn.compartments) == 1):
-#             e_laplace_inds += [i]
-#         else:
-#             e_zero_inds += [i]
-
-# e_laplace_inds = np.array(e_laplace_inds)
-# e_zero_inds = np.array(e_zero_inds)
-# e_indexer = np.hstack([e_inds, e_laplace_inds, e_zero_inds]).argsort()
-
-# with pm.Model() as pymc_model:
-
-#     e_measured = pm.Normal("log_e_measured", mu=np.log(en), sigma=0.2, shape=(n_exp, len(e_inds)))
-#     e_unmeasured = pm.Laplace("log_e_unmeasured", mu=0, b=0.1, shape=(n_exp, len(e_laplace_inds)))
-#     log_en_t = T.concatenate(
-#         [e_measured, e_unmeasured, T.zeros((n_exp, len(e_zero_inds)))], axis=1
-#     )[:, e_indexer]
