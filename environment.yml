@@ -2,7 +2,7 @@ name: idp_new
 channels:
   - defaults
 dependencies:
-  - python=3.9
+  - python=3.11.8
   - pip:
     - cobra==0.29.0
     - arviz==0.13.0
@@ -10,8 +10,8 @@ dependencies:
     - pandas 
     - cloudpickle
     - numpy==1.24
-    - pymc==4.3.0
-    - pytensor
+    - pymc==5.9.2
+    - pytensor==2.17.4
     - seaborn==0.12.1
     - tqdm
     - ipython
