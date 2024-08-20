@@ -24,7 +24,7 @@ def create_noisy_observations_of_computed_values(name:str, computed_tensor:T.ten
         raise ValueError("Data shape does not match standard deviation shape!")
 
     # check shape of data == computed_tensor
-    if any(data.shape != computed_tensor.shape.eval()):
+    if any(data.shape != computed_tensor.eval().shape):
         raise ValueError(f"Data shape {data.shape} does not match computed tensor shape {pytensor.tensor.shape(computed_tensor)}!")
 
     # check that standard deviations are all positive
