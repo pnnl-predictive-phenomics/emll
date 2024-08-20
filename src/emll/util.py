@@ -6,6 +6,8 @@ import pymc as pm
 import tellurium as te
 import libsbml
 
+import os
+
 
 def create_elasticity_matrix(model):
     """Create an elasticity matrix given the model in model.
@@ -237,39 +239,48 @@ def ant_to_cobra(antimony_path):
 
     # load normal Antimony file
     with open(antimony_path,'r') as file:
+        # reprint the antimony model into a temp file to ensure proper
+        # headers
+        # load antimony file
+        r = te.loada(antimony_path)
+        # print antimony file to temp
+        with open('tempA7K8L2P4W9.txt','w') as f:
+            f.write(r.getCurrentAntimony())
+        old_ant = 'tempA7K8L2P4W9.txt'
+
+    with open(old_ant,'r') as file:
         lines = file.readlines()
-    section_indices = []
-    c_index = -1
-    for i, line in enumerate(lines): 
-        if '//' in line:
-            section_indices.append(i)
-        if '// Compartment' in line and c_index == -1: 
-            c_index = i
+        section_indices = []
+        c_index = -1
+        for i, line in enumerate(lines): 
+            if '//' in line:
+                section_indices.append(i)
+            if '// Compartment' in line and c_index == -1: 
+                c_index = i
+        next_section = section_indices.index(c_index) + 1
+        
+        with open(old_ant,'r') as file:
+            lines = file.readlines()[c_index: section_indices[next_section]]
+        
+        with open(f'{output_name}_cobra.ant', 'w') as f:
+                f.write('')
 
-    next_section = section_indices.index(c_index) + 1
-    with open(antimony_path,'r') as file:
-        lines = file.readlines()[c_index: section_indices[next_section]]
-    
-    with open(f'{output_name}_cobra.ant', 'w') as f:
-            f.write('')
+        for line in lines:
+            line = line.strip()
+            if '$' not in line: 
+                with open(f'{output_name}_cobra.ant', 'a') as f:
+                    f.write(line + '\n')
+            else: 
+                no_bd_sp = [i for i in line.split(',') if '$' not in i]
+                no_bd_sp = [i for i in no_bd_sp if i!='']
 
-    for line in lines:
-        line = line.strip()
-        if '$' not in line: 
-            with open(f'{output_name}_cobra.ant', 'a') as f:
-                f.write(line + '\n')
-
-        else: 
-            no_bd_sp = [i for i in line.split(',') if '$' not in i]
-            no_bd_sp = [i for i in no_bd_sp if i!='']
-
-            line = ','.join(no_bd_sp)
-            if line != '' and line[-1] != ';': 
-                line += ';'
-            if 'species' not in line: 
-                line = 'species' + line
-            with open(f'{output_name}_cobra.ant', 'a') as f:
-                f.write(line + '\n')
+                line = ','.join(no_bd_sp)
+                if line != '' and line[-1] != ';': 
+                    line += ';'
+                if 'species' not in line: 
+                    line = 'species' + line
+                with open(f'{output_name}_cobra.ant', 'a') as f:
+                    f.write(line + '\n')    
     
     r = te.loada(antimony_path)
     doc = libsbml.readSBMLFromString(r.getSBML())
@@ -317,4 +328,7 @@ def ant_to_cobra(antimony_path):
     with open(f'{output_name}_cobra.xml', 'w') as f:
         f.write(te.loada(f'{output_name}_cobra.ant').getCurrentSBML())
 
+    if 'tempA7K8L2P4W9.txt' in os.listdir(): 
+        os.remove('tempA7K8L2P4W9.txt')
+    
     return f'{output_name}_cobra'
