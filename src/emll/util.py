@@ -250,6 +250,9 @@ def ant_to_cobra(antimony_path):
     with open(antimony_path,'r') as file:
         lines = file.readlines()[c_index: section_indices[next_section]]
     
+    with open(f'{output_name}_cobra.ant', 'w') as f:
+            f.write('')
+
     for line in lines:
         line = line.strip()
         if '$' not in line: 
@@ -263,6 +266,8 @@ def ant_to_cobra(antimony_path):
             line = ','.join(no_bd_sp)
             if line != '' and line[-1] != ';': 
                 line += ';'
+            if 'species' not in line: 
+                line = 'species' + line
             with open(f'{output_name}_cobra.ant', 'a') as f:
                 f.write(line + '\n')
     
@@ -295,7 +300,7 @@ def ant_to_cobra(antimony_path):
             else:
                 products.append(str(stoich) + ' ' + rxn.getProduct(product).species)
         products_list.append([i for i in products if i not in bd_sp])
-        
+
     for i in range(len(reactants_list)):
         r1 = ' + '.join(reactants_list[i])
         p1 = ' + '.join(products_list[i])
@@ -309,8 +314,7 @@ def ant_to_cobra(antimony_path):
         with open(f'{output_name}_cobra.ant', 'a') as f:
             f.write(sp + ' = 1;\n')
     
-    with open(f'{output_name}_cobra.xml', 'a') as f:
+    with open(f'{output_name}_cobra.xml', 'w') as f:
         f.write(te.loada(f'{output_name}_cobra.ant').getCurrentSBML())
 
     return f'{output_name}_cobra'
-
