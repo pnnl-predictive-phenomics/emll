@@ -3,6 +3,9 @@ import scipy as sp
 import pytensor.tensor as at
 import pymc as pm
 
+import tellurium as te
+import libsbml
+
 
 def create_elasticity_matrix(model):
     """Create an elasticity matrix given the model in model.
@@ -220,3 +223,94 @@ def initialize_elasticity(
     E = flat_e_entries[flat_indexer].reshape(N.T.shape)
 
     return E
+
+
+def ant_to_cobra(antimony_path):
+    """
+    This method takes in an Antimony file and converts it to a Cobra-
+    friendly format by removing all boundary species and replacing all
+    rate laws with a constant. Both an Antimony file and an SBML are 
+    produced, and the file name is returned. 
+    """
+    output_name = antimony_path.split('/')[-1]
+    output_name = output_name.split('.')[0]
+
+    # load normal Antimony file
+    with open(antimony_path,'r') as file:
+        lines = file.readlines()
+    section_indices = []
+    c_index = -1
+    for i, line in enumerate(lines): 
+        if '//' in line:
+            section_indices.append(i)
+        if '// Compartment' in line and c_index == -1: 
+            c_index = i
+
+    next_section = section_indices.index(c_index) + 1
+    with open(antimony_path,'r') as file:
+        lines = file.readlines()[c_index: section_indices[next_section]]
+    
+    for line in lines:
+        line = line.strip()
+        if '$' not in line: 
+            with open(f'{output_name}_cobra.ant', 'a') as f:
+                f.write(line + '\n')
+
+        else: 
+            no_bd_sp = [i for i in line.split(',') if '$' not in i]
+            no_bd_sp = [i for i in no_bd_sp if i!='']
+
+            line = ','.join(no_bd_sp)
+            if line != '' and line[-1] != ';': 
+                line += ';'
+            with open(f'{output_name}_cobra.ant', 'a') as f:
+                f.write(line + '\n')
+    
+    r = te.loada(antimony_path)
+    doc = libsbml.readSBMLFromString(r.getSBML())
+    model = doc.getModel()
+
+    bd_sp = r.getBoundarySpeciesIds()
+
+    reactants_list=[]
+    products_list=[]
+
+    for n in range(len(r.getReactionIds())): 
+        rxn = model.getReaction(n)
+        reactants = []
+        products = []
+
+        for reactant in range(rxn.getNumReactants()):   
+            stoich = rxn.getReactant(reactant).getStoichiometry()
+            if stoich == 1: 
+                reactants.append(rxn.getReactant(reactant).species)    
+            else:
+                reactants.append(str(stoich) + ' ' + rxn.getReactant(reactant).species)
+        reactants_list.append([i for i in reactants if i not in bd_sp])
+        
+        for product in range(rxn.getNumProducts()):
+            stoich = rxn.getProduct(product).getStoichiometry()
+            if stoich == 1: 
+                products.append(rxn.getProduct(product).species)    
+            else:
+                products.append(str(stoich) + ' ' + rxn.getProduct(product).species)
+        products_list.append([i for i in products if i not in bd_sp])
+        
+    for i in range(len(reactants_list)):
+        r1 = ' + '.join(reactants_list[i])
+        p1 = ' + '.join(products_list[i])
+        with open(f'{output_name}_cobra.ant', 'a') as f:
+            f.write(r.getReactionIds()[i]+ ': ' + r1 + ' -> ' + p1 + '; 1;\n')
+
+    with open(f'{output_name}_cobra.ant', 'a') as f:
+        f.write('\n')
+
+    for sp in r.getFloatingSpeciesIds():
+        with open(f'{output_name}_cobra.ant', 'a') as f:
+            f.write(sp + ' = 1;\n')
+    
+    with open(f'{output_name}_cobra.xml', 'a') as f:
+        f.write(te.loada(f'{output_name}_cobra.ant').getCurrentSBML())
+
+    return f'{output_name}_cobra'
+
