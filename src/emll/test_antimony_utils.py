@@ -11,7 +11,11 @@ logging.getLogger("cobra").setLevel(logging.ERROR)
 # from emll.util import ant_to_cobra
 from util import ant_to_cobra
 
-def compare_stoich_matrices(antimony_path):
+@pytest.mark.parametrize("antimony_path", [
+    "emll/src/emll/test_models/unlabeled18.ant",
+])
+
+def test_antimony_to_cobra_conversion(antimony_path):
     """
     Compares the stoichiometric matrices of original antimony file 
     and cobra-compatible sbml file to see if they are the same.
