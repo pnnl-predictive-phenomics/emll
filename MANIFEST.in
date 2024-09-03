@@ -1,3 +1,12 @@
-include emll/test_models/*.json
-include emll/test_models/BIOMD0000000064.xml
-include emll/test_models/jol2012_vstar.p
+include *.txt
+include *.yml
+include tox.ini
+recursive-include notebooks *.csv
+recursive-include notebooks *.ipynb
+recursive-include notebooks *.pgz
+recursive-include notebooks *.py
+recursive-include notebooks *.yaml
+recursive-include src *.json
+recursive-include src *.p
+recursive-include src *.xml
+recursive-include tests *.py

@@ -1,12 +1,11 @@
 """ Test File for linlog model methods """
 import numpy as np
-import pytest
-
 import pytensor
 import pytensor.tensor as at
+import pytest
 
-from emll.test_models import models
 from emll.linlog_model import LinLogLeastNorm, LinLogLinkMatrix, LinLogTikhonov
+from emll.test_models import models
 from emll.util import create_elasticity_matrix, create_Ey_matrix
 
 pytensor.config.compute_test_value = "ignore"
