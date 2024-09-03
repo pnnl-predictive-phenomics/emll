@@ -140,7 +140,7 @@ class LinLogBase:
             e_n = np.atleast_2d(e_n)
             n_exp = e_n.shape[0]
         else:
-            n_exp = e_n.shape.eval()[0]
+            n_exp = en.eval().shape[0]
 
         if isinstance(y_n, np.ndarray):
             y_n = np.atleast_2d(y_n)

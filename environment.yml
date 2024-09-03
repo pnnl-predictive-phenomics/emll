@@ -2,23 +2,17 @@ name: idp_new
 channels:
   - defaults
 dependencies:
-  - matplotlib=2.1.0
-  - patsy=0.5.0
-  - seaborn=0.9.0
-  - tqdm=4.24.0
-  - ipython
-  - jupyter
-  - notebook
-  - numpy=1.14.3
-  - pandas=0.23.0
-  - python=3.6
-  - scikit-learn=0.19.1
-  - scipy=1.1.0
-  - setuptools
-  - cython
-  - mkl-service
+  - python=3.11.8
   - pip:
-    - cobra==0.12.1
-    - pymc3==3.5
-    - swiglpk==1.4.4
-    - pytensor==2.16.1
+    - cobra==0.29.0
+    - arviz==0.13.0
+    - scipy==1.9.3
+    - pandas 
+    - cloudpickle
+    - numpy==1.24
+    - pymc==5.9.2
+    - pytensor==2.17.4
+    - seaborn==0.12.1
+    - tqdm
+    - ipython
+    - ipykernel
