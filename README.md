@@ -11,12 +11,12 @@ Works using emll can be found:
 To install:
 
 ```shell
-pip install git+https://github.com/PNNL-CompBio/emll.git
+pip install git+https://github.com/pnnl-predictive-phenomics/emll.git
 ```
 
 or to install in developer mode:
 ```python
-git clone https://github.com/PNNL-CompBio/emll.git
+git clone https://github.com/pnnl-predictive-phenomics/emll.git
 cd emll
 python -m pip install -e .
 ```
