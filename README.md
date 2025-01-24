@@ -3,8 +3,9 @@
 This project is a maintained fork of the code [pstjohn/emll](https://github.com/pstjohn/emll) using PyTensor over Theano. 
 
 Works using emll can be found:
-- [Bayesian Inference of Metabolic Kinetics from Genome-Scale Multiomics Data](https://dx.plos.org/10.1371/journal.pcbi.1007424)
-- [Bayesian Inference for Integrating Yarrowia lipolytica Multiomics Datasets with Metabolic Modeling](https://pubs.acs.org/doi/full/10.1021/acssynbio.1c00267)
+- St John, P. C., Strutz, J., Broadbelt, L. J., Tyo, K. E. J., & Bomble, Y. J. (2019). [Bayesian inference of metabolic kinetics from genome-scale multiomics data.](https://dx.plos.org/10.1371/journal.pcbi.1007424) PLoS Computational Biology, 15(11), e1007424. 
+- McNaughton, A. D., Bredeweg, E. L., Manzer, J., Zucker, J., Munoz Munoz, N., Burnet, M. C., Nakayasu, E. S., Pomraning, K. R., Merkley, E. D., Dai, Z., Chrisler, W. B., Baker, S. E., St John, P. C., & Kumar, N. (2021). [Bayesian Inference for Integrating Yarrowia lipolytica Multiomics Datasets with Metabolic Modeling.](https://pubs.acs.org/doi/full/10.1021/acssynbio.1c00267) ACS Synthetic Biology [Electronic Resource], 10(11), 2968–2981. 
+- McNaughton, A., Pino, J., Mahserejian, S., George, A., Johnson, C., Bohutskyi, P., Petyuk, V., & Zucker, J. (2024). [Bayesian framework for predicting and controlling metabolic phenotypes in microbial system.](https://doi.org/10.2172/2466236) Pacific Northwest National Laboratory (PNNL).
 
 ## Installation
 
